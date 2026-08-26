@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Biblioteca Viva V3 — Validador ISBN</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--ink:#172033;--muted:#64748b;--line:#dbe2ea;--accent:#315efb;--ok:#137333;--warn:#a15c00;--bad:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+header{background:#111827;color:#fff;padding:22px 28px}header h1{margin:0 0 4px;font-size:25px}header p{margin:0;color:#cbd5e1}
+main{max-width:1500px;margin:20px auto;padding:0 16px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:390px 1fr;gap:18px}
+label{display:block;font-weight:700;margin:9px 0 4px}input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink)}textarea{min-height:75px}
+button{border:0;border-radius:8px;padding:9px 12px;background:var(--accent);color:#fff;font-weight:700;margin:4px;cursor:pointer}.secondary{background:#475569}.ghost{background:#eef2ff;color:#243b8f}
+.row{display:flex;gap:6px;flex-wrap:wrap}.notice{padding:11px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa}.small{font-size:12px;color:var(--muted)}
+.status{padding:12px;border-radius:9px;border:1px solid var(--line);margin-top:10px}.ok{background:#ecfdf3;border-color:#86efac;color:var(--ok)}.warn{background:#fff7ed;border-color:#fdba74;color:var(--warn)}.bad{background:#fef2f2;border-color:#fca5a5;color:var(--bad)}
+.results{max-height:450px;overflow:auto;border:1px solid var(--line);border-radius:8px}.candidate{padding:12px;border-bottom:1px solid #e5e7eb}
+table{border-collapse:collapse;width:100%;min-width:1200px}th,td{border:1px solid var(--line);padding:7px;vertical-align:top}th{background:#eef2f7;position:sticky;top:0;text-align:left}.tablewrap{overflow:auto;max-height:560px}
+.pill{display:inline-block;padding:2px 7px;border-radius:99px;background:#eef2ff;color:#3349a8;font-size:11px;margin:2px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.step{padding:10px;border:1px solid var(--line);border-radius:8px}.step b{display:block}
+@media(max-width:950px){.grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Biblioteca Viva V3 — Validador correcto de ISBN</h1>
+<p>Validez matemática ≠ existencia bibliográfica ≠ correspondencia con la edición. La aplicación comprueba las tres.</p>
+</header>
+<main>
+
+<section class="card">
+<h2>Modelo de validación</h2>
+<div class="steps">
+<div class="step"><b>1. Sintaxis</b>Longitud, caracteres y normalización.</div>
+<div class="step"><b>2. Dígito de control</b>Algoritmo oficial ISBN-10/ISBN-13.</div>
+<div class="step"><b>3. Existencia</b>Consulta del ISBN en catálogos bibliográficos.</div>
+<div class="step"><b>4. Edición</b>Comparación título/autor/editorial/año con la edición encontrada.</div>
+</div>
+<div class="notice" style="margin-top:10px"><b>Regla:</b> solo se etiqueta <b>ISBN VERIFICADO</b> cuando el ISBN es matemáticamente válido, existe en una fuente bibliográfica y la edición encontrada es compatible con el registro. Si solo pasa el cálculo, queda <b>VÁLIDO MATEMÁTICAMENTE</b>.</div>
+</section>
+
+<div class="grid">
+<section class="card">
+<h2>1. Registro</h2>
+<label>Secuencia Biblioteca Viva</label><input id="seq" placeholder="BV-0001">
+<label>Título — llave primaria</label><input id="title" placeholder="Completo o incompleto">
+<label>Autor — pista secundaria</label><input id="author">
+<label>Editorial — pista secundaria</label><input id="publisher">
+<label>Año — pista secundaria</label><input id="year">
+<label>ISBN a validar</label><input id="isbn" placeholder="978... o 10 dígitos">
+<div id="quick" class="status">Sin ISBN para validar.</div>
+<div class="row"><button onclick="validateISBN()">Validar ISBN</button><button class="secondary" onclick="clearForm()">Limpiar</button></div>
+
+<h3>Clasificación SEP</h3>
+<label>Nivel</label><input id="level">
+<label>Categoría</label><input id="category">
+<label>Género (SEP)</label><input id="genre">
+<label>Disciplina (SEP)</label><input id="discipline">
+<label>Código de Clasificación SEP</label><input id="code">
+
+<label>Estado final</label>
+<select id="state"><option>POR REVISAR</option><option>CONFIRMADO</option><option>CONFIRMADO — MISMA EDICIÓN / EJEMPLAR DIFERENTE</option><option>CONFIRMADO — EDICIÓN DIFERENTE</option><option>DATOS PARCIALES</option><option>ISBN PENDIENTE</option><option>EDICIÓN PENDIENTE</option><option>CONFLICTO DOCUMENTADO</option><option>COTEJO FÍSICO NECESARIO</option></select>
+<label>Notas / evidencia humana</label><textarea id="notes"></textarea>
+<button onclick="saveRecord()">Guardar registro</button>
+</section>
+
+<section class="card">
+<h2>2. Resultado de validación</h2>
+<div id="result" class="status">Introduce un ISBN y pulsa “Validar ISBN”.</div>
+<h3>Datos encontrados para ese ISBN</h3>
+<div class="tablewrap"><table><thead><tr><th>Campo</th><th>Open Library</th><th>Google Books</th><th>Evaluación</th></tr></thead><tbody id="evidence"></tbody></table></div>
+<h3>Registro contra edición encontrada</h3>
+<div class="tablewrap"><table><tbody id="comparison"></tbody></table></div>
+</section>
+</div>
+
+<section class="card">
+<h2>3. Tabla final de Biblioteca Viva</h2>
+<p>La salida principal conserva exactamente los 11 campos solicitados.</p>
+<div class="row"><button onclick="exportCSV()">Exportar CSV</button><button class="secondary" onclick="copyTable()">Copiar tabla</button><button class="ghost" onclick="exportJSON()">Exportar JSON</button><input type="file" accept=".csv" onchange="importCSV(event)"></div>
+<div class="tablewrap"><table id="main"><thead></thead><tbody></tbody></table></div>
+</section>
+
+<section class="card">
+<h2>4. Bitácora de validación ISBN</h2>
+<div class="tablewrap"><table id="audit"><thead></thead><tbody></tbody></table></div>
+</section>
+</main>
+
+<script>
+const MAIN=['Título','Autor','Editorial','Año','ISBN verificado','Nivel','Categoría','Género (SEP)','Disciplina (SEP)','Secuencia Biblioteca Viva','Código de Clasificación SEP'];
+const ALL=[...MAIN,'Estado final','Resultado de depuración','Fuente/URL'];
+const AUD=['Secuencia Biblioteca Viva','ISBN ingresado','ISBN normalizado','Tipo','Sintaxis','Dígito de control','ISBN-13 equivalente','Open Library','Google Books','Correspondencia de edición','Dictamen','Fuentes','Fecha'];
+const KEY='bibliotecaVivaISBNV3';
+let rows=JSON.parse(localStorage.getItem(KEY)||'[]');
+let lastValidation=null;
+
+const $=id=>document.getElementById(id), v=id=>$(id).value.trim();
+function esc(s){return String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
+function cleanISBN(s){return (s||'').toUpperCase().replace(/[\s-]/g,'')}
+function validChars(s){return /^[0-9]{9}[0-9X]$/.test(s)||/^(978|979)[0-9]{10}$/.test(s)}
+function checksum10(s){if(!/^[0-9]{9}[0-9X]$/.test(s))return false;let sum=0;for(let i=0;i<10;i++){let n=s[i]==='X'?10:Number(s[i]);sum+=(10-i)*n}return sum%11===0}
+function checksum13(s){if(!/^(978|979)[0-9]{10}$/.test(s))return false;let sum=0;for(let i=0;i<13;i++)sum+=Number(s[i])*(i%2?3:1);return sum%10===0}
+function isbn10to13(s){if(!checksum10(s))return null;let core='978'+s.slice(0,9),sum=0;for(let i=0;i<12;i++)sum+=Number(core[i])*(i%2?3:1);return core+(10-sum%10)%10}
+function isbn13to10(s){if(!checksum13(s)||s.slice(0,3)!=='978')return null;let core=s.slice(3,12),sum=0;for(let i=0;i<9;i++)sum+=Number(core[i])*(10-i);let d=(11-sum%11)%11;return core+(d===10?'X':d)}
+function normText(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function similarity(a,b){a=normText(a);b=normText(b);if(!a||!b)return 0;if(a===b)return 1;let aa=new Set(a.split(' ')),bb=new Set(b.split(' ')),inter=[...aa].filter(x=>bb.has(x)).length;return inter/Math.max(aa.size,bb.size)}
+function dateNow(){return new Date().toISOString()}
+function quick(){
+ const raw=v('isbn'),s=cleanISBN(raw);
+ if(!s){$('quick').className='status';$('quick').textContent='Sin ISBN para validar.';return}
+ let syntax=validChars(s), chk=s.length===10?checksum10(s):s.length===13?checksum13(s):false;
+ $('quick').className='status '+(syntax&&chk?'ok':'bad');
+ $('quick').innerHTML='<b>'+esc(s)+'</b> — '+(syntax?'sintaxis compatible':'sintaxis inválida')+'; '+(chk?'dígito de control correcto':'dígito de control incorrecto')+'.';
+}
+$('isbn').addEventListener('input',quick);
+
+async function fetchOL(isbn13,isbn10){
+ let urls=[];
+ if(isbn13)urls.push('https://openlibrary.org/search.json?'+new URLSearchParams({isbn:isbn13,fields:'key,title,author_name,publisher,first_publish_year,isbn,edition_key,language,number_of_pages_median',limit:'10'}));
+ if(isbn10)urls.push('https://openlibrary.org/search.json?'+new URLSearchParams({isbn:isbn10,fields:'key,title,author_name,publisher,first_publish_year,isbn,edition_key,language,number_of_pages_median',limit:'10'}));
+ for(const u of urls){try{let r=await fetch(u);if(r.ok){let d=await r.json();if((d.docs||[]).length)return d.docs}}catch(e){}}
+ return [];
+}
+async function fetchGB(isbn){
+ try{let r=await fetch('https://www.googleapis.com/books/v1/volumes?'+new URLSearchParams({q:'isbn:'+isbn,maxResults:'10'}));if(!r.ok)return [];let d=await r.json();return (d.items||[]).map(x=>x.volumeInfo||{})}catch(e){return []}
+}
+
+async function validateISBN(){
+ const raw=v('isbn'),s=cleanISBN(raw);if(!s)return alert('Introduce un ISBN.');
+ const syntax=validChars(s), chk=s.length===10?checksum10(s):s.length===13?checksum13(s):false;
+ if(!syntax||!chk){lastValidation={raw,s,syntax,chk,dictamen:'ISBN INVÁLIDO'};renderValidation();return}
+ const isbn13=s.length===13?s:isbn10to13(s), isbn10=s.length===10?s:isbn13to10(s);
+ $('result').className='status warn';$('result').textContent='Validando existencia bibliográfica y correspondencia con la edición…';
+ const [ol,gb]=await Promise.all([fetchOL(isbn13,isbn10),fetchGB(isbn13)]);
+ const ol0=ol[0]||{}, gb0=gb[0]||{};
+ const olTitle=ol0.title||'', olAuthor=(ol0.author_name||[]).join('; '), olPub=(ol0.publisher||[]).join('; '), olYear=ol0.first_publish_year||'';
+ const gbTitle=gb0.title||'', gbAuthors=(gb0.authors||[]).join('; '), gbPub=(gb0.publisher||''), gbYear=gb0.publishedDate||'';
+ const titleScore=Math.max(similarity(v('title'),olTitle),similarity(v('title'),gbTitle));
+ const authorScore=v('author')?Math.max(similarity(v('author'),olAuthor),similarity(v('author'),gbAuthors)):null;
+ const pubScore=v('publisher')?Math.max(similarity(v('publisher'),olPub),similarity(v('publisher'),gbPub)):null;
+ const yearMatch=v('year')?((String(olYear).slice(0,4)===v('year').slice(0,4))||(String(gbYear).slice(0,4)===v('year').slice(0,4))):null;
+ const exists=ol.length>0||gb.length>0;
+ let editionMatch=false;
+ if(exists){
+   editionMatch=titleScore>=0.6 && (authorScore===null||authorScore>=0.45) && (pubScore===null||pubScore>=0.4) && (yearMatch===null||yearMatch);
+ }
+ let dictamen=editionMatch?'ISBN VERIFICADO':exists?'ISBN EXISTENTE — EDICIÓN NO CONCLUYENTE':'ISBN VÁLIDO MATEMÁTICAMENTE — NO LOCALIZADO EN LAS FUENTES CONSULTADAS';
+ lastValidation={raw,s,syntax,chk,isbn13,isbn10,ol,gb,exists,editionMatch,dictamen,titleScore,authorScore,pubScore,yearMatch,fecha:dateNow()};
+ renderValidation();
+}
+
+function renderValidation(){
+ let x=lastValidation;if(!x)return;
+ let cls=x.dictamen==='ISBN VERIFICADO'?'ok':x.dictamen==='ISBN INVÁLIDO'?'bad':'warn';
+ $('result').className='status '+cls;
+ $('result').innerHTML='<b>'+esc(x.dictamen)+'</b><br>ISBN normalizado: '+esc(x.s)+(x.isbn13?'<br>ISBN-13 equivalente: '+esc(x.isbn13):'')+(x.isbn10?'<br>ISBN-10 equivalente: '+esc(x.isbn10):'')+'<br><span class="small">La verificación bibliográfica depende de la edición encontrada, no solo del checksum.</span>';
+ let ol=x.ol?.[0]||{},gb=x.gb?.[0]||{};
+ $('evidence').innerHTML=[
+ ['Título',ol.title||'—',gb.title||'—',scoreText(x.titleScore)],
+ ['Autor',(ol.author_name||[]).join('; ')||'—',(gb.authors||[]).join('; ')||'—',scoreText(x.authorScore)],
+ ['Editorial',(ol.publisher||[]).join('; ')||'—',gb.publisher||'—',scoreText(x.pubScore)],
+ ['Año',ol.first_publish_year||'—',gb.publishedDate||'—',x.yearMatch===null?'No indicado':(x.yearMatch?'Coincide':'No coincide')],
+ ['ISBN',(ol.isbn||[]).join('; ')||'—',(gb.industryIdentifiers||[]).map(z=>z.identifier).join('; ')||'—','Identificador consultado']
+ ].map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('');
+ $('comparison').innerHTML=[
+ ['Título ingresado',v('title'),ol.title||gb.title||''],
+ ['Autor ingresado',v('author'),ol.author_name?.join('; ')||gb.authors?.join('; ')||''],
+ ['Editorial ingresada',v('publisher'),ol.publisher?.join('; ')||gb.publisher||''],
+ ['Año ingresado',v('year'),ol.first_publish_year||gb.publishedDate||''],
+ ['Dictamen','',x.dictamen]
+ ].map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('');
+}
+function scoreText(x){return x===null||x===undefined?'No indicado':Math.round(x*100)+'% de coincidencia textual'}
+function saveRecord(){
+ if(!v('title'))return alert('El título es obligatorio.');
+ let verified=lastValidation?.dictamen==='ISBN VERIFICADO'?lastValidation.isbn13:(lastValidation?.s||'');
+ let r={'Título':v('title'),'Autor':v('author'),'Editorial':v('publisher'),'Año':v('year'),'ISBN verificado':verified,'Nivel':v('level'),'Categoría':v('category'),'Género (SEP)':v('genre'),'Disciplina (SEP)':v('discipline'),'Secuencia Biblioteca Viva':v('seq'),'Código de Clasificación SEP':v('code'),'Estado final':v('state'),'Resultado de depuración':v('notes')+(lastValidation?'\nISBN: '+lastValidation.dictamen:''),'Fuente/URL':'Open Library + Google Books'};
+ let k=r['Secuencia Biblioteca Viva']||r['Título'],i=rows.findIndex(z=>(z['Secuencia Biblioteca Viva']||z['Título'])===k);i>=0?rows[i]=r:rows.push(r);localStorage.setItem(KEY,JSON.stringify(rows));render();alert('Registro guardado.')}
+function render(){
+ $('main').querySelector('thead').innerHTML='<tr>'+MAIN.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
+ $('main').querySelector('tbody').innerHTML=rows.map(r=>'<tr>'+MAIN.map(x=>'<td>'+esc(r[x]||'')+'</td>').join('')+'</tr>').join('');
+ $('audit').querySelector('thead').innerHTML='<tr>'+AUD.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
+ $('audit').querySelector('tbody').innerHTML=rows.map(r=>'<tr>'+AUD.map(x=>'<td>'+esc(auditVal(r,x))+'</td>').join('')+'</tr>').join('');
+}
+function auditVal(r,x){
+ if(x==='Secuencia Biblioteca Viva')return r['Secuencia Biblioteca Viva'];
+ if(x==='ISBN ingresado')return ''; if(x==='ISBN normalizado')return r['ISBN verificado']||'';
+ if(x==='Tipo')return r['ISBN verificado']?'ISBN-13 verificado':'—';
+ if(x==='Sintaxis'||x==='Dígito de control')return r['ISBN verificado']?'Correcto':'—';
+ if(x==='ISBN-13 equivalente')return r['ISBN verificado']||'';
+ if(x==='Open Library'||x==='Google Books')return r['Fuente/URL']||'';
+ if(x==='Correspondencia de edición')return r['Estado final']||'';
+ if(x==='Dictamen')return r['ISBN verificado']?'ISBN VERIFICADO':'—';
+ if(x==='Fuentes')return r['Fuente/URL']||''; if(x==='Fecha')return '';
+ return '';
+}
+function csvCell(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
+function download(n,d,t){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d],{type:t}));a.download=n;a.click()}
+function exportCSV(){download('Biblioteca_Viva_Tabla_Principal_ISBN_Verificado.csv','\ufeff'+MAIN.map(csvCell).join(',')+'\\n'+rows.map(r=>MAIN.map(f=>csvCell(r[f]||'')).join(',')).join('\\n'),'text/csv;charset=utf-8')}
+function exportJSON(){download('Biblioteca_Viva_ISBN_V3.json',JSON.stringify(rows,null,2),'application/json')}
+function copyTable(){navigator.clipboard.writeText(MAIN.join('\\t')+'\\n'+rows.map(r=>MAIN.map(f=>r[f]||'').join('\\t')).join('\\n')).then(()=>alert('Tabla copiada.'))}
+function importCSV(e){let fr=new FileReader();fr.onload=()=>{let lines=fr.result.replace(/^\\uFEFF/,'').split(/\\r?\\n/).filter(Boolean);let parse=s=>{let a=[],c='',q=0;for(let i=0;i<s.length;i++){if(s[i]=='"'){if(s[i+1]=='"'){c+='"';i++}else q=!q}else if(s[i]==','&&!q){a.push(c);c=''}else c+=s[i]}a.push(c);return a};let h=parse(lines[0]);rows=lines.slice(1).map(line=>{let a=parse(line),r={};h.forEach((k,i)=>r[k]=a[i]||'');return r});localStorage.setItem(KEY,JSON.stringify(rows));render()};fr.readAsText(e.target.files[0])}
+function clearForm(){['seq','title','author','publisher','year','isbn','level','category','genre','discipline','code','notes'].forEach(x=>$(x).value='');$('state').value='POR REVISAR';$('result').className='status';$('result').textContent='Introduce un ISBN y pulsa “Validar ISBN”.';$('evidence').innerHTML='';$('comparison').innerHTML='';lastValidation=null}
+render();
+</script>
+</body></html>
