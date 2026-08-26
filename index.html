@@ -75,9 +75,9 @@ table{border-collapse:collapse;width:100%;min-width:1200px}th,td{border:1px soli
 </div>
 
 <section class="card">
-<h2>3. Tabla final de Biblioteca Viva</h2>
-<p>La salida principal conserva exactamente los 11 campos solicitados.</p>
-<div class="row"><button onclick="exportCSV()">Exportar CSV</button><button class="secondary" onclick="copyTable()">Copiar tabla</button><button class="ghost" onclick="exportJSON()">Exportar JSON</button><input type="file" accept=".csv" onchange="importCSV(event)"></div>
+<h2>3. Tabla final de Biblioteca Viva <span id="count" class="pill"></span></h2>
+<p>La salida principal conserva exactamente los 11 campos solicitados. Puedes importar archivos Excel <b>.xlsx</b>, <b>.xls</b> o CSV con cualquier cantidad de filas. La primera fila debe contener los encabezados.</p><div id="importStatus" class="notice">No se ha importado un archivo.</div>
+<div class="row"><button onclick="exportCSV()">Exportar CSV</button><button class="secondary" onclick="copyTable()">Copiar tabla</button><button class="ghost" onclick="exportJSON()">Exportar JSON</button><input type="file" accept=".xlsx,.xls,.csv" onchange="importExcel(event"></div>
 <div class="tablewrap"><table id="main"><thead></thead><tbody></tbody></table></div>
 </section>
 
@@ -87,6 +87,7 @@ table{border-collapse:collapse;width:100%;min-width:1200px}th,td{border:1px soli
 </section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const MAIN=['Título','Autor','Editorial','Año','ISBN verificado','Nivel','Categoría','Género (SEP)','Disciplina (SEP)','Secuencia Biblioteca Viva','Código de Clasificación SEP'];
 const ALL=[...MAIN,'Estado final','Resultado de depuración','Fuente/URL'];
@@ -177,9 +178,9 @@ function saveRecord(){
  let verified=lastValidation?.dictamen==='ISBN VERIFICADO'?lastValidation.isbn13:(lastValidation?.s||'');
  let r={'Título':v('title'),'Autor':v('author'),'Editorial':v('publisher'),'Año':v('year'),'ISBN verificado':verified,'Nivel':v('level'),'Categoría':v('category'),'Género (SEP)':v('genre'),'Disciplina (SEP)':v('discipline'),'Secuencia Biblioteca Viva':v('seq'),'Código de Clasificación SEP':v('code'),'Estado final':v('state'),'Resultado de depuración':v('notes')+(lastValidation?'\nISBN: '+lastValidation.dictamen:''),'Fuente/URL':'Open Library + Google Books'};
  let k=r['Secuencia Biblioteca Viva']||r['Título'],i=rows.findIndex(z=>(z['Secuencia Biblioteca Viva']||z['Título'])===k);i>=0?rows[i]=r:rows.push(r);localStorage.setItem(KEY,JSON.stringify(rows));render();alert('Registro guardado.')}
-function render(){
+function render(){ $('count').textContent=rows.length+' registros';
  $('main').querySelector('thead').innerHTML='<tr>'+MAIN.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
- $('main').querySelector('tbody').innerHTML=rows.map(r=>'<tr>'+MAIN.map(x=>'<td>'+esc(r[x]||'')+'</td>').join('')+'</tr>').join('');
+ $('main').querySelector('tbody').innerHTML=rows.length?rows.map(r=>'<tr>'+MAIN.map(x=>'<td>'+esc(r[x]||'')+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="11" class="small">No hay registros cargados.</td></tr>';
  $('audit').querySelector('thead').innerHTML='<tr>'+AUD.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
  $('audit').querySelector('tbody').innerHTML=rows.map(r=>'<tr>'+AUD.map(x=>'<td>'+esc(auditVal(r,x))+'</td>').join('')+'</tr>').join('');
 }
@@ -200,7 +201,70 @@ function download(n,d,t){let a=document.createElement('a');a.href=URL.createObje
 function exportCSV(){download('Biblioteca_Viva_Tabla_Principal_ISBN_Verificado.csv','\ufeff'+MAIN.map(csvCell).join(',')+'\\n'+rows.map(r=>MAIN.map(f=>csvCell(r[f]||'')).join(',')).join('\\n'),'text/csv;charset=utf-8')}
 function exportJSON(){download('Biblioteca_Viva_ISBN_V3.json',JSON.stringify(rows,null,2),'application/json')}
 function copyTable(){navigator.clipboard.writeText(MAIN.join('\\t')+'\\n'+rows.map(r=>MAIN.map(f=>r[f]||'').join('\\t')).join('\\n')).then(()=>alert('Tabla copiada.'))}
-function importCSV(e){let fr=new FileReader();fr.onload=()=>{let lines=fr.result.replace(/^\\uFEFF/,'').split(/\\r?\\n/).filter(Boolean);let parse=s=>{let a=[],c='',q=0;for(let i=0;i<s.length;i++){if(s[i]=='"'){if(s[i+1]=='"'){c+='"';i++}else q=!q}else if(s[i]==','&&!q){a.push(c);c=''}else c+=s[i]}a.push(c);return a};let h=parse(lines[0]);rows=lines.slice(1).map(line=>{let a=parse(line),r={};h.forEach((k,i)=>r[k]=a[i]||'');return r});localStorage.setItem(KEY,JSON.stringify(rows));render()};fr.readAsText(e.target.files[0])}
+async function importExcel(e){
+ const file=e.target.files[0]; if(!file)return;
+ const status=$('importStatus');
+ status.className='notice'; status.textContent='Leyendo archivo…';
+ try{
+   const ext=file.name.toLowerCase().split('.').pop();
+   let data=[];
+   if(ext==='csv'){
+     const text=await file.text();
+     data=parseCSV(text);
+   }else{
+     if(typeof XLSX==='undefined') throw new Error('No se pudo cargar el motor de lectura de Excel.');
+     const buffer=await file.arrayBuffer();
+     const wb=XLSX.read(buffer,{type:'array',cellDates:true});
+     if(!wb.SheetNames.length) throw new Error('El archivo no contiene hojas.');
+     const ws=wb.Sheets[wb.SheetNames[0]];
+     data=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+   }
+   const normalized=data.map((r,idx)=>{
+     const out={};
+     // Match headers exactly, but also tolerate surrounding whitespace/BOM.
+     const map={};
+     Object.keys(r).forEach(k=>map[String(k).replace(/^\uFEFF/,'').trim()]=r[k]);
+     MAIN.forEach(f=>out[f]=map[f]!==undefined?String(map[f]).trim():'');
+     // Preserve optional workflow fields if present in the imported workbook.
+     ['Estado final','Resultado de depuración','Fuente/URL'].forEach(f=>{
+       out[f]=map[f]!==undefined?String(map[f]).trim():'';
+     });
+     out.__fila_importada=idx+2;
+     return out;
+   });
+   const missing=MAIN.filter(h=>!Object.keys(data[0]||{}).map(x=>String(x).replace(/^\uFEFF/,'').trim()).includes(h));
+   if(missing.length) throw new Error('Faltan encabezados obligatorios: '+missing.join(', '));
+   // Import ALL rows, including blank-looking books; only completely empty rows are ignored.
+   const usable=normalized.filter(r=>MAIN.some(f=>r[f]!=='')); 
+   const keyOf=r=>(r['Secuencia Biblioteca Viva']||'').trim()||('__fila_'+r.__fila_importada);
+   const existing=new Map(rows.map((r,i)=>[keyOf(r),i]));
+   let added=0,updated=0;
+   usable.forEach(r=>{
+     delete r.__fila_importada;
+     const k=keyOf(r);
+     if(existing.has(k)){rows[existing.get(k)]=r;updated++}
+     else{existing.set(k,rows.length);rows.push(r);added++}
+   });
+   localStorage.setItem(KEY,JSON.stringify(rows));
+   render();
+   status.className='status ok';
+   status.innerHTML='<b>Importación completada.</b> Filas leídas: '+data.length+
+     ' · registros incorporados/actualizados: '+usable.length+
+     ' · nuevos: '+added+' · actualizados: '+updated+
+     '<br>Hoja procesada: '+(ext==='csv'?'CSV':XLSX.utils.book_new?'primera hoja del Excel':'Excel');
+   e.target.value='';
+ }catch(err){
+   status.className='status bad';
+   status.innerHTML='<b>No se pudo importar el archivo.</b><br>'+esc(err.message);
+ }
+}
+function parseCSV(text){
+ const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim()!=='');
+ if(!lines.length)return [];
+ const parse=s=>{let a=[],c='',q=false;for(let i=0;i<s.length;i++){let ch=s[i];if(ch==='"'){if(s[i+1]==='"'){c+='"';i++}else q=!q}else if((ch===','||ch===';')&&!q){a.push(c);c=''}else c+=ch}a.push(c);return a};
+ const h=parse(lines[0]).map(x=>x.trim());
+ return lines.slice(1).map(line=>{let a=parse(line),r={};h.forEach((k,i)=>r[k]=a[i]??'');return r});
+}
 function clearForm(){['seq','title','author','publisher','year','isbn','level','category','genre','discipline','code','notes'].forEach(x=>$(x).value='');$('state').value='POR REVISAR';$('result').className='status';$('result').textContent='Introduce un ISBN y pulsa “Validar ISBN”.';$('evidence').innerHTML='';$('comparison').innerHTML='';lastValidation=null}
 render();
 </script>
