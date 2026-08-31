@@ -46,12 +46,48 @@
         }
         .skeleton { animation: pulseSkeleton 1.4s ease-in-out infinite; }
 
+        /* Mejora #2 — edición inline (solo filas en estado "Revisar") */
+        .editable-field {
+            outline: none;
+            border-bottom: 1px dashed #fbbf24;
+            cursor: text;
+            border-radius: 2px;
+            padding: 0 2px;
+            margin: 0 -2px;
+        }
+        .editable-field:hover { background-color: #fffbeb; }
+        .editable-field:focus { background-color: #fef3c7; }
+        .editable-field:empty:before {
+            content: attr(data-placeholder);
+            color: #fda4af;
+            font-style: italic;
+        }
+
         tr[data-hidden="true"] { display: none; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800 p-4 md:p-8 flex justify-center items-start">
 
     <main class="w-full max-w-7xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-100">
+
+        <!-- Mejora #1: aviso de sesión anterior sin terminar -->
+        <div id="sessionResumeModal" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="bg-amber-100 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800">Sesión anterior encontrada</h3>
+                </div>
+                <p class="text-sm text-slate-600 mb-5" id="sessionResumeDetail">Hay una sesión sin terminar guardada en este navegador.</p>
+                <div class="flex gap-2">
+                    <button id="sessionResumeBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-all">Retomar sesión anterior</button>
+                    <button id="sessionNewBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg text-sm transition-all">Iniciar nueva</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Header -->
         <header class="bg-gradient-to-r from-emerald-700 to-teal-800 text-white p-6 md:p-8">
@@ -76,6 +112,16 @@
 
             <!-- Left Column: Controls & Stats -->
             <div class="xl:col-span-4 space-y-6 flex flex-col">
+
+                <!-- Configuración: API Key opcional -->
+                <div class="bg-white border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    <label for="googleApiKeyInput" class="text-slate-500 shrink-0">Clave API de Google Books (opcional):</label>
+                    <input type="text" id="googleApiKeyInput" placeholder="Cuota compartida por defecto — pega tu clave para una cuota exclusiva"
+                        class="flex-1 min-w-0 text-xs border border-slate-200 rounded px-2 py-1 focus:ring-1 focus:ring-emerald-500 outline-none">
+                </div>
 
                 <!-- Input Form -->
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
@@ -498,8 +544,19 @@
             };
         }
 
+        // Mejora #3 — clave de Google Books opcional: si el maestro pega su propia clave,
+        // se anexa a cada consulta de Google Books para usar cuota exclusiva en vez de la
+        // cuota anónima compartida. Se lee siempre en el momento (nunca cacheada), y se
+        // persiste en localStorage para no tener que volver a pegarla en cada sesión.
+        const GOOGLE_API_KEY_STORAGE = 'validador_google_api_key_v1';
+        function withGoogleApiKey(url) {
+            const input = document.getElementById('googleApiKeyInput');
+            const key = input ? input.value.trim() : '';
+            return key ? `${url}&key=${encodeURIComponent(key)}` : url;
+        }
+
         async function fetchGoogleBooks(title, signal) {
-            const url = `${GB_SEARCH_URL}?q=${encodeURIComponent('intitle:' + title)}&maxResults=1&printType=books`;
+            const url = withGoogleApiKey(`${GB_SEARCH_URL}?q=${encodeURIComponent('intitle:' + title)}&maxResults=1&printType=books`);
             const data = await fetchJson(url, signal);
             if (!data.items || data.items.length === 0) return null;
             const info = data.items[0].volumeInfo || {};
@@ -638,8 +695,14 @@
         // ============================================================
         const isbnIndex = new Map();  // ISBN normalizado -> registro
         const titleIndex = new Map(); // título normalizado -> registro (título buscado Y título encontrado)
+        const recordById = new Map(); // id numérico -> registro (usado por la edición inline, mejora #2)
+        let recordIdCounter = 0;
 
         function indexRecord(record) {
+            if (!record.id) {
+                record.id = ++recordIdCounter;
+                recordById.set(record.id, record);
+            }
             const normOriginal = normalizeText(record.originalTitle);
             if (normOriginal) titleIndex.set(normOriginal, record);
             if (record.apiData && record.apiData.found) {
@@ -684,6 +747,78 @@
         }
 
         // ============================================================
+        // Mejora #1 — Auto-guardado de sesión (localStorage)
+        // ============================================================
+        const SESSION_STORAGE_KEY = 'validador_biblioteca_viva_session_v1';
+
+        function saveSessionToStorage() {
+            try {
+                const serializable = records.map(r => ({
+                    originalTitle: r.originalTitle,
+                    apiData: r.apiData,
+                    status: r.status,
+                    origin: r.origin || 'titulo'
+                }));
+                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), records: serializable }));
+            } catch (e) {
+                // localStorage puede fallar (modo privado, cuota llena) — no debe romper el flujo principal
+                console.warn('No se pudo autoguardar la sesión:', e);
+            }
+        }
+
+        function clearSavedSession() {
+            try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) { /* no crítico */ }
+        }
+
+        function restoreSessionFromStorage(saved) {
+            // OJO: nunca usar recordsTable.innerHTML='' aquí — destruiría de forma permanente
+            // el nodo #emptyState (la variable `emptyState` quedaría apuntando a un elemento
+            // huérfano, y "Limpiar" ya no podría volver a mostrarlo). Se remueven solo las
+            // filas de datos, igual que hace el botón Limpiar.
+            recordsTable.querySelectorAll('tr:not(#emptyState)').forEach(row => row.remove());
+            const fragment = document.createDocumentFragment();
+            saved.records.forEach(r => {
+                const record = { originalTitle: r.originalTitle, apiData: r.apiData, status: r.status, origin: r.origin || 'titulo', rowEl: null, searchIndex: '' };
+                const tr = createPendingRow(record);
+                record.rowEl = tr;
+                fragment.appendChild(tr);
+                records.push(record); // el orden guardado ya es el orden de despliegue (arriba -> abajo)
+                indexRecord(record);
+            });
+            recordsTable.appendChild(fragment);
+            records.forEach(r => renderRow(r));
+            emptyState.style.display = records.length ? 'none' : 'table-row';
+            updateStats();
+            applyFilters();
+        }
+
+        function checkForSavedSession() {
+            let saved = null;
+            try {
+                const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+                if (raw) saved = JSON.parse(raw);
+            } catch (e) { /* sesión corrupta o localStorage no disponible — se ignora */ }
+
+            if (!saved || !Array.isArray(saved.records) || saved.records.length === 0) return;
+
+            const modal = document.getElementById('sessionResumeModal');
+            const detail = document.getElementById('sessionResumeDetail');
+            const fecha = new Date(saved.savedAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+            detail.textContent = `Se encontraron ${saved.records.length} registro(s) de una sesión guardada automáticamente el ${fecha}. ¿Deseas retomarla o iniciar una nueva?`;
+            modal.classList.remove('hidden');
+
+            document.getElementById('sessionResumeBtn').onclick = () => {
+                restoreSessionFromStorage(saved);
+                modal.classList.add('hidden');
+                showToast(`Sesión anterior retomada: ${saved.records.length} registro(s).`, 'success');
+            };
+            document.getElementById('sessionNewBtn').onclick = () => {
+                clearSavedSession();
+                modal.classList.add('hidden');
+            };
+        }
+
+        // ============================================================
         // MOTOR 2 — Búsqueda directa por ISBN (identificador exacto: sin
         // necesidad de validar por similitud de título, a diferencia del Motor 1)
         // ============================================================
@@ -705,7 +840,7 @@
         }
 
         async function fetchGoogleBooksByISBN(isbn, signal) {
-            const url = `${GB_SEARCH_URL}?q=${encodeURIComponent('isbn:' + isbn)}&maxResults=1`;
+            const url = withGoogleApiKey(`${GB_SEARCH_URL}?q=${encodeURIComponent('isbn:' + isbn)}&maxResults=1`);
             const data = await fetchJson(url, signal);
             if (!data.items || data.items.length === 0) return null;
             const info = data.items[0].volumeInfo || {};
@@ -935,7 +1070,13 @@
                 return;
             }
 
-            // No hay coincidencia con ningún registro existente: es un libro nuevo
+            // Zona gris (30%-60%): no es suficiente para fusionar solo, pero tampoco se
+            // puede ignorar en silencio — se documenta como alerta explícita.
+            if (bestMatch && bestSim >= MIN_ACCEPTABLE_SIMILARITY && bestSim < STRONG_SIMILARITY) {
+                logAudit('pendiente', `Posible duplicado, revisar a mano: ISBN ${normIsbn} ("${candidate.title}") se parece ${Math.round(bestSim * 100)}% a "${bestMatch.apiData.title}" (ya existente) — no es suficiente para unificarlo automáticamente.`);
+            }
+
+            // No hay coincidencia suficiente con ningún registro existente: es un libro nuevo
             addIsbnAsNewRecord(normIsbn, Object.assign({}, candidate, { found: true, similarity: 1, confidence: 'valid' }));
             logAudit('completado', `ISBN ${normIsbn} ("${candidate.title}") agregado como nuevo registro (Motor 2, fuente ${candidate.source}).`);
         }
@@ -1041,6 +1182,31 @@
         });
         filterStatus.addEventListener('change', applyFilters);
 
+        // Mejora #2 — confirma cada corrección manual cuando el campo editable pierde el
+        // foco. Delegado sobre recordsTable (las filas se reconstruyen constantemente vía
+        // innerHTML, así que un listener por celda se perdería en cada re-render).
+        recordsTable.addEventListener('focusout', (e) => {
+            const target = e.target;
+            if (!target.classList || !target.classList.contains('editable-field')) return;
+            const tr = target.closest('tr');
+            if (!tr) return;
+            const record = recordById.get(Number(tr.dataset.recordId));
+            if (!record || record.status !== 'review') return;
+
+            const field = target.dataset.editableField;
+            const newValue = target.textContent.trim();
+            const oldValue = record.apiData[field] || '';
+            if (newValue === oldValue) return;
+
+            const editLabels = Object.assign({ title: 'Título' }, FIELD_LABELS);
+            record.apiData[field] = newValue || null;
+            record.manuallyEdited = true;
+            if (field === 'title' && newValue) indexRecord(record); // re-indexar: el título cambió
+            logAudit('completado', `Corrección manual: "${editLabels[field] || field}" cambiado de "${oldValue || '(vacío)'}" a "${newValue || '(vacío)'}" en "${record.apiData.title}".`);
+            renderRow(record);
+            saveSessionToStorage();
+        });
+
         // ============================================================
         // UI: filas de la tabla
         // ============================================================
@@ -1072,6 +1238,15 @@
             return div.innerHTML;
         }
 
+        // Mejora #2 — genera un <span contenteditable> para corrección manual rápida.
+        // Solo se usa en filas con status 'review'; el valor se confirma al perder el foco
+        // (ver el listener 'focusout' delegado sobre recordsTable).
+        function editableSpan(field, value, placeholder, extraClass) {
+            const cls = `editable-field ${extraClass || ''}`.trim();
+            const content = value ? escapeHtml(value) : '';
+            return `<span class="${cls}" contenteditable="true" data-editable-field="${field}" data-placeholder="${escapeHtml(placeholder)}" spellcheck="false">${content}</span>`;
+        }
+
         function sourceBadge(source) {
             if (source === 'OpenLibrary') {
                 return `<span class="text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">OpenLibrary</span>`;
@@ -1097,6 +1272,7 @@
 
         function renderRow(record) {
             const tr = record.rowEl;
+            tr.dataset.recordId = record.id; // vínculo estable para la edición inline (mejora #2)
             const apiData = record.apiData;
             let statusUI = '', bookUI = '', isbnUI = '';
 
@@ -1116,17 +1292,34 @@
                     ? `<img src="${apiData.coverUrl}" loading="lazy" class="w-12 h-16 object-cover rounded shadow border border-slate-200 cover-image" alt="Portada" onerror="this.outerHTML='<div class=\\'w-12 h-16 bg-slate-100 border border-slate-200 rounded flex items-center justify-center\\'><span class=\\'text-[8px] text-slate-400\\'>Sin Img</span></div>'">`
                     : `<div class="w-12 h-16 bg-slate-100 border border-slate-200 rounded shadow-sm flex items-center justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg></div>`;
 
+                // Mejora #2: las filas "Revisar" se vuelven editables inline; las "Validado" quedan
+                // de solo lectura (ya pasaron el umbral de confianza, no se tocan por accidente).
+                const editable = !isValid;
+                const titleHtml = editable
+                    ? editableSpan('title', apiData.title, 'Título', 'font-bold text-slate-800 text-sm mb-0.5 block')
+                    : `<span class="font-bold text-slate-800 text-sm mb-0.5 truncate" title="${escapeHtml(apiData.title)}">${escapeHtml(apiData.title)}</span>`;
+                const authorsHtml = editable
+                    ? `<div class="text-xs text-slate-600 mb-1">👤 ${editableSpan('authors', apiData.authors, 'no verificado', '')}</div>`
+                    : `<span class="text-xs text-slate-600 mb-1 truncate" title="${escapeHtml(apiData.authors || 'No verificado')}">👤 ${apiData.authors ? escapeHtml(apiData.authors) : '<span class="text-rose-400 italic">no verificado</span>'}</span>`;
+                const publisherHtml = editable
+                    ? `🏢 ${editableSpan('publisher', apiData.publisher, 'no verificado', 'bg-slate-100 px-1.5 py-0.5 rounded')}`
+                    : `<span class="bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[120px]" title="${escapeHtml(apiData.publisher || 'No verificado')}">🏢 ${apiData.publisher ? escapeHtml(apiData.publisher) : '<span class="text-rose-400 italic">no verificado</span>'}</span>`;
+                const yearHtml = editable
+                    ? `📅 ${editableSpan('publishYear', apiData.publishYear, 'no verificado', '')}`
+                    : `<span>📅 ${apiData.publishYear ? escapeHtml(apiData.publishYear) : '<span class="text-rose-400 italic">no verificado</span>'}</span>`;
+
                 bookUI = `
                     <div class="flex items-start gap-4 py-2">
                         <div class="flex-shrink-0">${coverHtml}</div>
                         <div class="flex flex-col overflow-hidden min-w-0">
-                            <span class="font-bold text-slate-800 text-sm mb-0.5 truncate" title="${escapeHtml(apiData.title)}">${escapeHtml(apiData.title)}</span>
-                            <span class="text-xs text-slate-600 mb-1 truncate" title="${escapeHtml(apiData.authors || 'No verificado')}">👤 ${apiData.authors ? escapeHtml(apiData.authors) : '<span class="text-rose-400 italic">no verificado</span>'}</span>
+                            ${titleHtml}
+                            ${authorsHtml}
                             <div class="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
-                                <span class="bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[120px]" title="${escapeHtml(apiData.publisher || 'No verificado')}">🏢 ${apiData.publisher ? escapeHtml(apiData.publisher) : '<span class="text-rose-400 italic">no verificado</span>'}</span>
-                                <span>📅 ${apiData.publishYear ? escapeHtml(apiData.publishYear) : '<span class="text-rose-400 italic">no verificado</span>'}</span>
+                                ${publisherHtml}
+                                ${yearHtml}
                                 ${sourceBadge(apiData.source)}
                                 ${originBadge(record.origin)}
+                                ${editable ? '<span class="text-[10px] text-amber-600 font-semibold">✎ Editable — corrige y haz clic fuera para guardar</span>' : ''}
                             </div>
                         </div>
                     </div>
@@ -1212,6 +1405,9 @@
                     progressText.textContent = `${completed} de ${total} (${percent}%)`;
                     updateStats();
 
+                    // Mejora #1 — autoguardado cada 10 filas procesadas
+                    if (completed % 10 === 0) saveSessionToStorage();
+
                     if (signal.aborted) return;
                     try { await sleep(WORKER_PACE_MS, signal); } catch (e) { return; }
                 }
@@ -1219,6 +1415,7 @@
 
             const workerCount = Math.min(CONCURRENCY, total) || 1;
             await Promise.all(Array.from({ length: workerCount }, worker));
+            saveSessionToStorage(); // asegura el estado final aunque el total no sea múltiplo de 10
         }
 
         function setProcessingUI(active, statusMessage) {
@@ -1389,6 +1586,18 @@
             }
         });
 
+        // Clave de Google Books: cargar la guardada (si existe) y persistir cada cambio
+        (function initGoogleApiKeyField() {
+            const input = document.getElementById('googleApiKeyInput');
+            try {
+                const saved = localStorage.getItem(GOOGLE_API_KEY_STORAGE);
+                if (saved) input.value = saved;
+            } catch (e) { /* localStorage no disponible (modo privado, etc.) — se ignora */ }
+            input.addEventListener('input', () => {
+                try { localStorage.setItem(GOOGLE_API_KEY_STORAGE, input.value.trim()); } catch (e) { /* no crítico */ }
+            });
+        })();
+
         // ============================================================
         // MOTOR 2 — orquestación del lote de ISBN (reutiliza el mismo
         // pool de concurrencia, señales de cancelación y barra de progreso del Motor 1)
@@ -1471,6 +1680,10 @@
             }
             records = [];
             titleCache.clear();
+            isbnIndex.clear();
+            titleIndex.clear();
+            recordById.clear();
+            clearSavedSession(); // higiene: una limpieza intencional no debe poder "recuperarse" al recargar
             recordsTable.querySelectorAll('tr:not(#emptyState)').forEach(row => row.remove());
             emptyState.style.display = 'table-row';
             titleInput.value = '';
@@ -1659,6 +1872,9 @@
         // externos (importacion.js) interoperen con el estado interno de esta
         // IIFE sin acceder directamente a sus variables privadas.
         // ============================================================
+        // Verificar sesión sin terminar al cargar (mejora #1)
+        checkForSavedSession();
+
         window.Validador = {
             // Estado (acceso siempre vía función, nunca por copia directa — evita referencias
             // obsoletas cuando `records` se reasigna internamente, p. ej. al limpiar la tabla)

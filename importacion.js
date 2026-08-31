@@ -283,6 +283,11 @@
                 V.logAudit('fusion', `Archivo: "${rec.titulo}" se unificó con el registro existente "${bestMatch.apiData.title}" (${Math.round(bestSim * 100)}% de coincidencia de título) — se evitó un duplicado. Completó: ${filled.length ? filled.join(', ') : 'nada nuevo'}.`);
                 return bestMatch;
             }
+            // Zona gris (30%-60%): no fusiona sola, pero se documenta como alerta explícita
+            // en vez de crear un registro nuevo en silencio.
+            if (bestMatch && bestSim >= V.MIN_ACCEPTABLE_SIMILARITY && bestSim < V.STRONG_SIMILARITY) {
+                V.logAudit('pendiente', `Posible duplicado, revisar a mano: Archivo "${rec.titulo}" se parece ${Math.round(bestSim * 100)}% a "${bestMatch.apiData.title}" (ya existente en la tabla) — no es suficiente para unificarlo automáticamente.`);
+            }
         }
 
         const found = !!rec.titulo;
