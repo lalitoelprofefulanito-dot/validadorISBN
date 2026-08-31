@@ -1,271 +1,1710 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Biblioteca Viva V3 — Validador ISBN</title>
-<style>
-:root{--bg:#f5f7fb;--card:#fff;--ink:#172033;--muted:#64748b;--line:#dbe2ea;--accent:#315efb;--ok:#137333;--warn:#a15c00;--bad:#b42318}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-header{background:#111827;color:#fff;padding:22px 28px}header h1{margin:0 0 4px;font-size:25px}header p{margin:0;color:#cbd5e1}
-main{max-width:1500px;margin:20px auto;padding:0 16px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
-.grid{display:grid;grid-template-columns:390px 1fr;gap:18px}
-label{display:block;font-weight:700;margin:9px 0 4px}input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink)}textarea{min-height:75px}
-button{border:0;border-radius:8px;padding:9px 12px;background:var(--accent);color:#fff;font-weight:700;margin:4px;cursor:pointer}.secondary{background:#475569}.ghost{background:#eef2ff;color:#243b8f}
-.row{display:flex;gap:6px;flex-wrap:wrap}.notice{padding:11px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa}.small{font-size:12px;color:var(--muted)}
-.status{padding:12px;border-radius:9px;border:1px solid var(--line);margin-top:10px}.ok{background:#ecfdf3;border-color:#86efac;color:var(--ok)}.warn{background:#fff7ed;border-color:#fdba74;color:var(--warn)}.bad{background:#fef2f2;border-color:#fca5a5;color:var(--bad)}
-.results{max-height:450px;overflow:auto;border:1px solid var(--line);border-radius:8px}.candidate{padding:12px;border-bottom:1px solid #e5e7eb}
-table{border-collapse:collapse;width:100%;min-width:1200px}th,td{border:1px solid var(--line);padding:7px;vertical-align:top}th{background:#eef2f7;position:sticky;top:0;text-align:left}.tablewrap{overflow:auto;max-height:560px}
-.pill{display:inline-block;padding:2px 7px;border-radius:99px;background:#eef2ff;color:#3349a8;font-size:11px;margin:2px}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.step{padding:10px;border:1px solid var(--line);border-radius:8px}.step b{display:block}
-@media(max-width:950px){.grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr}}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador Masivo de Títulos de Libros</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-populate@1.21.0/browser/xlsx-populate-no-encryption.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fdf4;
+            background-image: radial-gradient(#bbf7d0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .table-container::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-enter { animation: slideIn 0.3s ease-out forwards; }
+
+        .progress-bar-stripes {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            animation: progress-stripes 1s linear infinite;
+        }
+        @keyframes progress-stripes {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
+        }
+
+        .cover-image { transition: transform 0.2s ease; }
+        .cover-image:hover { transform: scale(1.1); }
+
+        @keyframes pulseSkeleton {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .skeleton { animation: pulseSkeleton 1.4s ease-in-out infinite; }
+
+        tr[data-hidden="true"] { display: none; }
+    </style>
 </head>
-<body>
-<header>
-<h1>Biblioteca Viva V3 — Validador correcto de ISBN</h1>
-<p>Validez matemática ≠ existencia bibliográfica ≠ correspondencia con la edición. La aplicación comprueba las tres.</p>
-</header>
-<main>
+<body class="min-h-screen text-slate-800 p-4 md:p-8 flex justify-center items-start">
 
-<section class="card">
-<h2>Modelo de validación</h2>
-<div class="steps">
-<div class="step"><b>1. Sintaxis</b>Longitud, caracteres y normalización.</div>
-<div class="step"><b>2. Dígito de control</b>Algoritmo oficial ISBN-10/ISBN-13.</div>
-<div class="step"><b>3. Existencia</b>Consulta del ISBN en catálogos bibliográficos.</div>
-<div class="step"><b>4. Edición</b>Comparación título/autor/editorial/año con la edición encontrada.</div>
-</div>
-<div class="notice" style="margin-top:10px"><b>Regla:</b> solo se etiqueta <b>ISBN VERIFICADO</b> cuando el ISBN es matemáticamente válido, existe en una fuente bibliográfica y la edición encontrada es compatible con el registro. Si solo pasa el cálculo, queda <b>VÁLIDO MATEMÁTICAMENTE</b>.</div>
-</section>
+    <main class="w-full max-w-7xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-100">
 
-<div class="grid">
-<section class="card">
-<h2>1. Registro</h2>
-<label>Secuencia Biblioteca Viva</label><input id="seq" placeholder="BV-0001">
-<label>Título — llave primaria</label><input id="title" placeholder="Completo o incompleto">
-<label>Autor — pista secundaria</label><input id="author">
-<label>Editorial — pista secundaria</label><input id="publisher">
-<label>Año — pista secundaria</label><input id="year">
-<label>ISBN a validar</label><input id="isbn" placeholder="978... o 10 dígitos">
-<div id="quick" class="status">Sin ISBN para validar.</div>
-<div class="row"><button onclick="validateISBN()">Validar ISBN</button><button class="secondary" onclick="clearForm()">Limpiar</button></div>
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-emerald-700 to-teal-800 text-white p-6 md:p-8">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Validador Masivo de Títulos de Libros</h1>
+                </div>
+                <div class="bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm border border-white/20 text-sm font-medium flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    OpenLibrary + Google Books + Internet Archive
+                </div>
+            </div>
+            <p class="text-emerald-50 mt-2 opacity-90 text-sm md:text-base max-w-3xl">
+                Pega una lista de hasta <strong>1,000 títulos de libros</strong>. Cada título se busca en OpenLibrary; si no aparece, se reintenta en Google Books y, como último recurso, en el catálogo del Internet Archive. El resultado se valida comparando el título encontrado contra el título buscado, para distinguir coincidencias confiables de posibles errores.
+            </p>
+        </header>
 
-<h3>Clasificación SEP</h3>
-<label>Nivel</label><input id="level">
-<label>Categoría</label><input id="category">
-<label>Género (SEP)</label><input id="genre">
-<label>Disciplina (SEP)</label><input id="discipline">
-<label>Código de Clasificación SEP</label><input id="code">
+        <div class="p-6 md:p-8 grid grid-cols-1 xl:grid-cols-12 gap-8">
 
-<label>Estado final</label>
-<select id="state"><option>POR REVISAR</option><option>CONFIRMADO</option><option>CONFIRMADO — MISMA EDICIÓN / EJEMPLAR DIFERENTE</option><option>CONFIRMADO — EDICIÓN DIFERENTE</option><option>DATOS PARCIALES</option><option>ISBN PENDIENTE</option><option>EDICIÓN PENDIENTE</option><option>CONFLICTO DOCUMENTADO</option><option>COTEJO FÍSICO NECESARIO</option></select>
-<label>Notas / evidencia humana</label><textarea id="notes"></textarea>
-<button onclick="saveRecord()">Guardar registro</button>
-</section>
+            <!-- Left Column: Controls & Stats -->
+            <div class="xl:col-span-4 space-y-6 flex flex-col">
 
-<section class="card">
-<h2>2. Resultado de validación</h2>
-<div id="result" class="status">Introduce un ISBN y pulsa “Validar ISBN”.</div>
-<h3>Datos encontrados para ese ISBN</h3>
-<div class="tablewrap"><table><thead><tr><th>Campo</th><th>Open Library</th><th>Google Books</th><th>Evaluación</th></tr></thead><tbody id="evidence"></tbody></table></div>
-<h3>Registro contra edición encontrada</h3>
-<div class="tablewrap"><table><tbody id="comparison"></tbody></table></div>
-</section>
-</div>
+                <!-- Input Form -->
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
+                    <form id="titleForm" class="space-y-4">
+                        <div>
+                            <label for="titleInput" class="flex justify-between items-center text-sm font-semibold text-slate-700 mb-2">
+                                <span>Lista de Títulos (Uno por línea)</span>
+                                <span class="text-xs font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full transition-colors" id="countBadge">0/1000</span>
+                            </label>
+                            <textarea id="titleInput" rows="8" placeholder="Ejemplo:&#10;Cien años de soledad&#10;El señor de los anillos&#10;1984&#10;Don Quijote de la Mancha"
+                                class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all resize-none text-sm leading-relaxed whitespace-pre-wrap"></textarea>
+                        </div>
 
-<section class="card">
-<h2>3. Tabla final de Biblioteca Viva <span id="count" class="pill"></span></h2>
-<p>La salida principal conserva exactamente los 11 campos solicitados. Puedes importar archivos Excel <b>.xlsx</b>, <b>.xls</b> o CSV con cualquier cantidad de filas. La primera fila debe contener los encabezados.</p><div id="importStatus" class="notice">No se ha importado un archivo.</div>
-<div class="row"><button onclick="exportCSV()">Exportar CSV</button><button class="secondary" onclick="copyTable()">Copiar tabla</button><button class="ghost" onclick="exportJSON()">Exportar JSON</button><input type="file" accept=".xlsx,.xls,.csv" onchange="importExcel(event"></div>
-<div class="tablewrap"><table id="main"><thead></thead><tbody></tbody></table></div>
-</section>
+                        <!-- Progress Indicator -->
+                        <div id="progressContainer" class="hidden space-y-2 bg-white p-3 rounded-lg border border-slate-200">
+                            <div class="flex justify-between text-xs font-bold text-slate-600">
+                                <span id="statusText" class="animate-pulse text-emerald-600">Buscando...</span>
+                                <span id="progressText">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
+                                <div id="progressBar" class="bg-emerald-500 h-3 rounded-full progress-bar-stripes transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <p class="text-[10px] text-slate-400 text-center mt-1">Procesamiento en paralelo controlado (3 solicitudes simultáneas) para no saturar las 3 APIs públicas.</p>
+                        </div>
 
-<section class="card">
-<h2>4. Bitácora de validación ISBN</h2>
-<div class="tablewrap"><table id="audit"><thead></thead><tbody></tbody></table></div>
-</section>
-</main>
+                        <div class="flex gap-2">
+                            <button type="submit" id="processBtn"
+                                class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-all shadow-md hover:shadow-lg flex justify-center items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                Validar Títulos
+                            </button>
+                            <button type="button" id="stopBtn" disabled
+                                class="hidden bg-red-100 text-red-600 hover:bg-red-200 font-semibold py-3 px-4 rounded-lg transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </form>
+                    <button id="retryBtn" class="hidden w-full mt-3 bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold py-2.5 px-4 rounded-lg transition-all text-sm flex justify-center items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span id="retryBtnLabel">Reintentar no encontrados</span>
+                    </button>
+                </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script>
-const MAIN=['Título','Autor','Editorial','Año','ISBN verificado','Nivel','Categoría','Género (SEP)','Disciplina (SEP)','Secuencia Biblioteca Viva','Código de Clasificación SEP'];
-const ALL=[...MAIN,'Estado final','Resultado de depuración','Fuente/URL'];
-const AUD=['Secuencia Biblioteca Viva','ISBN ingresado','ISBN normalizado','Tipo','Sintaxis','Dígito de control','ISBN-13 equivalente','Open Library','Google Books','Correspondencia de edición','Dictamen','Fuentes','Fecha'];
-const KEY='bibliotecaVivaISBNV3';
-let rows=JSON.parse(localStorage.getItem(KEY)||'[]');
-let lastValidation=null;
+                <!-- Motor 2: Listado de ISBN -->
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="isbnInput" class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <span class="bg-teal-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">MOTOR 2</span>
+                            Listado de ISBN (enriquecimiento)
+                        </label>
+                        <span class="text-xs font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full" id="isbnCountBadge">0/1000</span>
+                    </div>
+                    <textarea id="isbnInput" rows="4" placeholder="Ejemplo:&#10;9789681102254&#10;978-84-9838-149-8&#10;0261102354"
+                        class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-teal-600 outline-none transition-all resize-none text-sm font-mono"></textarea>
+                    <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Compara cada ISBN contra los títulos ya validados: si coincide (por ISBN o por título), completa los campos faltantes sin crear duplicados; si no existe, lo agrega como registro nuevo.</p>
+                    <button type="button" id="processIsbnBtn"
+                        class="w-full mt-3 bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        Procesar Listado de ISBN
+                    </button>
+                </div>
 
-const $=id=>document.getElementById(id), v=id=>$(id).value.trim();
-function esc(s){return String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
-function cleanISBN(s){return (s||'').toUpperCase().replace(/[\s-]/g,'')}
-function validChars(s){return /^[0-9]{9}[0-9X]$/.test(s)||/^(978|979)[0-9]{10}$/.test(s)}
-function checksum10(s){if(!/^[0-9]{9}[0-9X]$/.test(s))return false;let sum=0;for(let i=0;i<10;i++){let n=s[i]==='X'?10:Number(s[i]);sum+=(10-i)*n}return sum%11===0}
-function checksum13(s){if(!/^(978|979)[0-9]{10}$/.test(s))return false;let sum=0;for(let i=0;i<13;i++)sum+=Number(s[i])*(i%2?3:1);return sum%10===0}
-function isbn10to13(s){if(!checksum10(s))return null;let core='978'+s.slice(0,9),sum=0;for(let i=0;i<12;i++)sum+=Number(core[i])*(i%2?3:1);return core+(10-sum%10)%10}
-function isbn13to10(s){if(!checksum13(s)||s.slice(0,3)!=='978')return null;let core=s.slice(3,12),sum=0;for(let i=0;i<9;i++)sum+=Number(core[i])*(10-i);let d=(11-sum%11)%11;return core+(d===10?'X':d)}
-function normText(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
-function similarity(a,b){a=normText(a);b=normText(b);if(!a||!b)return 0;if(a===b)return 1;let aa=new Set(a.split(' ')),bb=new Set(b.split(' ')),inter=[...aa].filter(x=>bb.has(x)).length;return inter/Math.max(aa.size,bb.size)}
-function dateNow(){return new Date().toISOString()}
-function quick(){
- const raw=v('isbn'),s=cleanISBN(raw);
- if(!s){$('quick').className='status';$('quick').textContent='Sin ISBN para validar.';return}
- let syntax=validChars(s), chk=s.length===10?checksum10(s):s.length===13?checksum13(s):false;
- $('quick').className='status '+(syntax&&chk?'ok':'bad');
- $('quick').innerHTML='<b>'+esc(s)+'</b> — '+(syntax?'sintaxis compatible':'sintaxis inválida')+'; '+(chk?'dígito de control correcto':'dígito de control incorrecto')+'.';
-}
-$('isbn').addEventListener('input',quick);
+                <!-- Motor 3: Consolidación desde archivos -->
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
+                    <label class="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                        <span class="bg-purple-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">MOTOR 3</span>
+                        Consolidar desde Excel / CSV
+                    </label>
+                    <div id="importDropzone" class="border-2 border-dashed border-slate-300 rounded-lg p-5 text-center text-sm text-slate-500 cursor-pointer hover:border-purple-400 hover:bg-purple-50/40 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto mb-1 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Arrastra aquí uno o varios .xlsx / .csv, o haz clic para elegirlos
+                        <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" multiple class="hidden">
+                    </div>
+                    <div id="importMappingPanel" class="hidden mt-3 space-y-3"></div>
+                    <button type="button" id="importConfirmBtn" class="hidden w-full mt-3 bg-purple-700 hover:bg-purple-800 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                        Confirmar mapeo y consolidar
+                    </button>
+                </div>
 
-async function fetchOL(isbn13,isbn10){
- let urls=[];
- if(isbn13)urls.push('https://openlibrary.org/search.json?'+new URLSearchParams({isbn:isbn13,fields:'key,title,author_name,publisher,first_publish_year,isbn,edition_key,language,number_of_pages_median',limit:'10'}));
- if(isbn10)urls.push('https://openlibrary.org/search.json?'+new URLSearchParams({isbn:isbn10,fields:'key,title,author_name,publisher,first_publish_year,isbn,edition_key,language,number_of_pages_median',limit:'10'}));
- for(const u of urls){try{let r=await fetch(u);if(r.ok){let d=await r.json();if((d.docs||[]).length)return d.docs}}catch(e){}}
- return [];
-}
-async function fetchGB(isbn){
- try{let r=await fetch('https://www.googleapis.com/books/v1/volumes?'+new URLSearchParams({q:'isbn:'+isbn,maxResults:'10'}));if(!r.ok)return [];let d=await r.json();return (d.items||[]).map(x=>x.volumeInfo||{})}catch(e){return []}
-}
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 gap-3 mt-auto">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center shadow-sm">
+                        <span class="block text-3xl font-black text-slate-700" id="stat-total">0</span>
+                        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide mt-1 block">Procesados</span>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-center shadow-sm">
+                        <span class="block text-3xl font-black text-emerald-600" id="stat-found">0</span>
+                        <span class="text-[11px] font-bold text-emerald-800 uppercase tracking-wide mt-1 block">Validados</span>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center shadow-sm">
+                        <span class="block text-3xl font-black text-amber-600" id="stat-review">0</span>
+                        <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wide mt-1 block">Para Revisar</span>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-100 p-4 rounded-xl text-center shadow-sm">
+                        <span class="block text-3xl font-black text-rose-600" id="stat-notfound">0</span>
+                        <span class="text-[11px] font-bold text-rose-800 uppercase tracking-wide mt-1 block">No Encontrados</span>
+                    </div>
+                </div>
+            </div>
 
-async function validateISBN(){
- const raw=v('isbn'),s=cleanISBN(raw);if(!s)return alert('Introduce un ISBN.');
- const syntax=validChars(s), chk=s.length===10?checksum10(s):s.length===13?checksum13(s):false;
- if(!syntax||!chk){lastValidation={raw,s,syntax,chk,dictamen:'ISBN INVÁLIDO'};renderValidation();return}
- const isbn13=s.length===13?s:isbn10to13(s), isbn10=s.length===10?s:isbn13to10(s);
- $('result').className='status warn';$('result').textContent='Validando existencia bibliográfica y correspondencia con la edición…';
- const [ol,gb]=await Promise.all([fetchOL(isbn13,isbn10),fetchGB(isbn13)]);
- const ol0=ol[0]||{}, gb0=gb[0]||{};
- const olTitle=ol0.title||'', olAuthor=(ol0.author_name||[]).join('; '), olPub=(ol0.publisher||[]).join('; '), olYear=ol0.first_publish_year||'';
- const gbTitle=gb0.title||'', gbAuthors=(gb0.authors||[]).join('; '), gbPub=(gb0.publisher||''), gbYear=gb0.publishedDate||'';
- const titleScore=Math.max(similarity(v('title'),olTitle),similarity(v('title'),gbTitle));
- const authorScore=v('author')?Math.max(similarity(v('author'),olAuthor),similarity(v('author'),gbAuthors)):null;
- const pubScore=v('publisher')?Math.max(similarity(v('publisher'),olPub),similarity(v('publisher'),gbPub)):null;
- const yearMatch=v('year')?((String(olYear).slice(0,4)===v('year').slice(0,4))||(String(gbYear).slice(0,4)===v('year').slice(0,4))):null;
- const exists=ol.length>0||gb.length>0;
- let editionMatch=false;
- if(exists){
-   editionMatch=titleScore>=0.6 && (authorScore===null||authorScore>=0.45) && (pubScore===null||pubScore>=0.4) && (yearMatch===null||yearMatch);
- }
- let dictamen=editionMatch?'ISBN VERIFICADO':exists?'ISBN EXISTENTE — EDICIÓN NO CONCLUYENTE':'ISBN VÁLIDO MATEMÁTICAMENTE — NO LOCALIZADO EN LAS FUENTES CONSULTADAS';
- lastValidation={raw,s,syntax,chk,isbn13,isbn10,ol,gb,exists,editionMatch,dictamen,titleScore,authorScore,pubScore,yearMatch,fecha:dateNow()};
- renderValidation();
-}
+            <!-- Right Column: Data Table -->
+            <div class="xl:col-span-8 flex flex-col h-full min-h-[600px]">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Informe Bibliográfico
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button id="exportInventarioBtn" class="text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 px-3 py-1.5 rounded-md transition-all hidden items-center gap-2 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Exportar a Inventario Biblioteca Viva
+                        </button>
+                        <button id="exportBtn" class="text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-md transition-all hidden flex items-center gap-2 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Exportar CSV
+                        </button>
+                        <button id="clearBtn" class="text-sm font-medium text-slate-500 hover:text-red-600 bg-white border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-md transition-all hidden flex items-center gap-1 shadow-sm">
+                            Limpiar
+                        </button>
+                    </div>
+                </div>
 
-function renderValidation(){
- let x=lastValidation;if(!x)return;
- let cls=x.dictamen==='ISBN VERIFICADO'?'ok':x.dictamen==='ISBN INVÁLIDO'?'bad':'warn';
- $('result').className='status '+cls;
- $('result').innerHTML='<b>'+esc(x.dictamen)+'</b><br>ISBN normalizado: '+esc(x.s)+(x.isbn13?'<br>ISBN-13 equivalente: '+esc(x.isbn13):'')+(x.isbn10?'<br>ISBN-10 equivalente: '+esc(x.isbn10):'')+'<br><span class="small">La verificación bibliográfica depende de la edición encontrada, no solo del checksum.</span>';
- let ol=x.ol?.[0]||{},gb=x.gb?.[0]||{};
- $('evidence').innerHTML=[
- ['Título',ol.title||'—',gb.title||'—',scoreText(x.titleScore)],
- ['Autor',(ol.author_name||[]).join('; ')||'—',(gb.authors||[]).join('; ')||'—',scoreText(x.authorScore)],
- ['Editorial',(ol.publisher||[]).join('; ')||'—',gb.publisher||'—',scoreText(x.pubScore)],
- ['Año',ol.first_publish_year||'—',gb.publishedDate||'—',x.yearMatch===null?'No indicado':(x.yearMatch?'Coincide':'No coincide')],
- ['ISBN',(ol.isbn||[]).join('; ')||'—',(gb.industryIdentifiers||[]).map(z=>z.identifier).join('; ')||'—','Identificador consultado']
- ].map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('');
- $('comparison').innerHTML=[
- ['Título ingresado',v('title'),ol.title||gb.title||''],
- ['Autor ingresado',v('author'),ol.author_name?.join('; ')||gb.authors?.join('; ')||''],
- ['Editorial ingresada',v('publisher'),ol.publisher?.join('; ')||gb.publisher||''],
- ['Año ingresado',v('year'),ol.first_publish_year||gb.publishedDate||''],
- ['Dictamen','',x.dictamen]
- ].map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('');
-}
-function scoreText(x){return x===null||x===undefined?'No indicado':Math.round(x*100)+'% de coincidencia textual'}
-function saveRecord(){
- if(!v('title'))return alert('El título es obligatorio.');
- let verified=lastValidation?.dictamen==='ISBN VERIFICADO'?lastValidation.isbn13:(lastValidation?.s||'');
- let r={'Título':v('title'),'Autor':v('author'),'Editorial':v('publisher'),'Año':v('year'),'ISBN verificado':verified,'Nivel':v('level'),'Categoría':v('category'),'Género (SEP)':v('genre'),'Disciplina (SEP)':v('discipline'),'Secuencia Biblioteca Viva':v('seq'),'Código de Clasificación SEP':v('code'),'Estado final':v('state'),'Resultado de depuración':v('notes')+(lastValidation?'\nISBN: '+lastValidation.dictamen:''),'Fuente/URL':'Open Library + Google Books'};
- let k=r['Secuencia Biblioteca Viva']||r['Título'],i=rows.findIndex(z=>(z['Secuencia Biblioteca Viva']||z['Título'])===k);i>=0?rows[i]=r:rows.push(r);localStorage.setItem(KEY,JSON.stringify(rows));render();alert('Registro guardado.')}
-function render(){ $('count').textContent=rows.length+' registros';
- $('main').querySelector('thead').innerHTML='<tr>'+MAIN.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
- $('main').querySelector('tbody').innerHTML=rows.length?rows.map(r=>'<tr>'+MAIN.map(x=>'<td>'+esc(r[x]||'')+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="11" class="small">No hay registros cargados.</td></tr>';
- $('audit').querySelector('thead').innerHTML='<tr>'+AUD.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
- $('audit').querySelector('tbody').innerHTML=rows.map(r=>'<tr>'+AUD.map(x=>'<td>'+esc(auditVal(r,x))+'</td>').join('')+'</tr>').join('');
-}
-function auditVal(r,x){
- if(x==='Secuencia Biblioteca Viva')return r['Secuencia Biblioteca Viva'];
- if(x==='ISBN ingresado')return ''; if(x==='ISBN normalizado')return r['ISBN verificado']||'';
- if(x==='Tipo')return r['ISBN verificado']?'ISBN-13 verificado':'—';
- if(x==='Sintaxis'||x==='Dígito de control')return r['ISBN verificado']?'Correcto':'—';
- if(x==='ISBN-13 equivalente')return r['ISBN verificado']||'';
- if(x==='Open Library'||x==='Google Books')return r['Fuente/URL']||'';
- if(x==='Correspondencia de edición')return r['Estado final']||'';
- if(x==='Dictamen')return r['ISBN verificado']?'ISBN VERIFICADO':'—';
- if(x==='Fuentes')return r['Fuente/URL']||''; if(x==='Fecha')return '';
- return '';
-}
-function csvCell(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
-function download(n,d,t){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d],{type:t}));a.download=n;a.click()}
-function exportCSV(){download('Biblioteca_Viva_Tabla_Principal_ISBN_Verificado.csv','\ufeff'+MAIN.map(csvCell).join(',')+'\\n'+rows.map(r=>MAIN.map(f=>csvCell(r[f]||'')).join(',')).join('\\n'),'text/csv;charset=utf-8')}
-function exportJSON(){download('Biblioteca_Viva_ISBN_V3.json',JSON.stringify(rows,null,2),'application/json')}
-function copyTable(){navigator.clipboard.writeText(MAIN.join('\\t')+'\\n'+rows.map(r=>MAIN.map(f=>r[f]||'').join('\\t')).join('\\n')).then(()=>alert('Tabla copiada.'))}
-async function importExcel(e){
- const file=e.target.files[0]; if(!file)return;
- const status=$('importStatus');
- status.className='notice'; status.textContent='Leyendo archivo…';
- try{
-   const ext=file.name.toLowerCase().split('.').pop();
-   let data=[];
-   if(ext==='csv'){
-     const text=await file.text();
-     data=parseCSV(text);
-   }else{
-     if(typeof XLSX==='undefined') throw new Error('No se pudo cargar el motor de lectura de Excel.');
-     const buffer=await file.arrayBuffer();
-     const wb=XLSX.read(buffer,{type:'array',cellDates:true});
-     if(!wb.SheetNames.length) throw new Error('El archivo no contiene hojas.');
-     const ws=wb.Sheets[wb.SheetNames[0]];
-     data=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-   }
-   const normalized=data.map((r,idx)=>{
-     const out={};
-     // Match headers exactly, but also tolerate surrounding whitespace/BOM.
-     const map={};
-     Object.keys(r).forEach(k=>map[String(k).replace(/^\uFEFF/,'').trim()]=r[k]);
-     MAIN.forEach(f=>out[f]=map[f]!==undefined?String(map[f]).trim():'');
-     // Preserve optional workflow fields if present in the imported workbook.
-     ['Estado final','Resultado de depuración','Fuente/URL'].forEach(f=>{
-       out[f]=map[f]!==undefined?String(map[f]).trim():'';
-     });
-     out.__fila_importada=idx+2;
-     return out;
-   });
-   const missing=MAIN.filter(h=>!Object.keys(data[0]||{}).map(x=>String(x).replace(/^\uFEFF/,'').trim()).includes(h));
-   if(missing.length) throw new Error('Faltan encabezados obligatorios: '+missing.join(', '));
-   // Import ALL rows, including blank-looking books; only completely empty rows are ignored.
-   const usable=normalized.filter(r=>MAIN.some(f=>r[f]!=='')); 
-   const keyOf=r=>(r['Secuencia Biblioteca Viva']||'').trim()||('__fila_'+r.__fila_importada);
-   const existing=new Map(rows.map((r,i)=>[keyOf(r),i]));
-   let added=0,updated=0;
-   usable.forEach(r=>{
-     delete r.__fila_importada;
-     const k=keyOf(r);
-     if(existing.has(k)){rows[existing.get(k)]=r;updated++}
-     else{existing.set(k,rows.length);rows.push(r);added++}
-   });
-   localStorage.setItem(KEY,JSON.stringify(rows));
-   render();
-   status.className='status ok';
-   status.innerHTML='<b>Importación completada.</b> Filas leídas: '+data.length+
-     ' · registros incorporados/actualizados: '+usable.length+
-     ' · nuevos: '+added+' · actualizados: '+updated+
-     '<br>Hoja procesada: '+(ext==='csv'?'CSV':XLSX.utils.book_new?'primera hoja del Excel':'Excel');
-   e.target.value='';
- }catch(err){
-   status.className='status bad';
-   status.innerHTML='<b>No se pudo importar el archivo.</b><br>'+esc(err.message);
- }
-}
-function parseCSV(text){
- const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim()!=='');
- if(!lines.length)return [];
- const parse=s=>{let a=[],c='',q=false;for(let i=0;i<s.length;i++){let ch=s[i];if(ch==='"'){if(s[i+1]==='"'){c+='"';i++}else q=!q}else if((ch===','||ch===';')&&!q){a.push(c);c=''}else c+=ch}a.push(c);return a};
- const h=parse(lines[0]).map(x=>x.trim());
- return lines.slice(1).map(line=>{let a=parse(line),r={};h.forEach((k,i)=>r[k]=a[i]??'');return r});
-}
-function clearForm(){['seq','title','author','publisher','year','isbn','level','category','genre','discipline','code','notes'].forEach(x=>$(x).value='');$('state').value='POR REVISAR';$('result').className='status';$('result').textContent='Introduce un ISBN y pulsa “Validar ISBN”.';$('evidence').innerHTML='';$('comparison').innerHTML='';lastValidation=null}
-render();
-</script>
-</body></html>
+                <!-- Filter Toolbar -->
+                <div id="filterBar" class="hidden flex flex-wrap gap-2 mb-3">
+                    <input type="text" id="filterInput" placeholder="Filtrar por título o autor..."
+                        class="flex-1 min-w-[180px] px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                    <select id="filterStatus" class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                        <option value="all">Todos los estados</option>
+                        <option value="valid">Validados</option>
+                        <option value="review">Para revisar</option>
+                        <option value="notfound">No encontrados</option>
+                    </select>
+                    <span id="filterCount" class="text-xs text-slate-500 self-center px-2"></span>
+                </div>
+
+                <div class="flex-grow border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
+                    <div class="overflow-x-auto table-container flex-grow h-[600px]">
+                        <table class="w-full text-left border-collapse whitespace-nowrap md:whitespace-normal">
+                            <thead class="sticky top-0 bg-slate-100 border-b border-slate-200 z-10 shadow-sm">
+                                <tr>
+                                    <th class="p-4 font-semibold text-slate-700 w-[20%] text-xs uppercase tracking-wider">Título Buscado</th>
+                                    <th class="p-4 font-semibold text-slate-700 w-[40%] text-xs uppercase tracking-wider">Libro Recuperado</th>
+                                    <th class="p-4 font-semibold text-slate-700 w-[18%] text-xs uppercase tracking-wider">ISBN Oficial</th>
+                                    <th class="p-4 font-semibold text-slate-700 text-center w-[22%] text-xs uppercase tracking-wider">Validación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordsTable" class="divide-y divide-slate-100">
+                                <!-- Empty State -->
+                                <tr id="emptyState">
+                                    <td colspan="4" class="p-16 text-center text-slate-400 bg-slate-50/50">
+                                        <div class="bg-emerald-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                            </svg>
+                                        </div>
+                                        <p class="font-medium text-lg text-slate-600">Esperando títulos...</p>
+                                        <p class="text-sm mt-1 max-w-sm mx-auto text-slate-500">Pega tu lista de libros en el panel izquierdo. Obtendremos la portada, autor, año e ISBN oficial, y validaremos cada coincidencia.</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Registro de Auditoría -->
+    <div id="auditLogPanel" class="hidden w-full max-w-7xl mx-auto mt-4 border border-slate-200 rounded-xl bg-white shadow-sm">
+        <button id="auditLogToggle" type="button" class="w-full flex items-center justify-between px-5 py-3 text-left">
+            <span class="font-bold text-slate-700 flex items-center gap-2 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Registro de Auditoría
+                <span class="text-xs font-normal text-slate-400">(<span id="auditLogCount">0</span> eventos — correcciones, duplicados evitados y pendientes reales)</span>
+            </span>
+            <svg id="auditLogChevron" class="h-4 w-4 text-slate-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
+        <div id="auditLogBody" class="hidden border-t border-slate-100 px-5 py-3 max-h-72 overflow-y-auto">
+            <div id="auditLogList" class="flex flex-col gap-1.5"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50" aria-live="polite"></div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        // ============================================================
+        // Configuración
+        // ============================================================
+        const MAX_TITLES = 1000;
+        const CONCURRENCY = 3;                 // solicitudes simultáneas
+        const WORKER_PACE_MS = 250;             // pausa de cada worker entre solicitudes propias
+        const REQUEST_TIMEOUT_MS = 12000;       // tiempo máximo por solicitud
+        const MAX_RETRIES = 2;                  // reintentos por fuente ante error/HTTP 429/5xx
+        const MIN_ACCEPTABLE_SIMILARITY = 0.30; // por debajo de esto, se descarta como falso positivo
+        const STRONG_SIMILARITY = 0.60;         // por encima de esto, se considera "Validado"
+
+        const OL_SEARCH_URL = 'https://openlibrary.org/search.json';
+        const OL_FIELDS = 'title,author_name,first_publish_year,publisher,isbn,cover_i';
+        const GB_SEARCH_URL = 'https://www.googleapis.com/books/v1/volumes';
+        const IA_SEARCH_URL = 'https://archive.org/advancedsearch.php';
+        const IA_FIELDS = ['identifier', 'title', 'creator', 'year', 'publisher', 'isbn'];
+
+        // Plantilla oficial "Inventario Biblioteca Viva" (Escuela Primaria Molino de Rosas) embebida en
+        // Base64 para poder generar la exportacion sin depender de que el usuario la vuelva a subir cada vez.
+        // Contiene 4 hojas: Instructivo, Clasificador SEP, Clasificador SEP - Rincon, Inventario
+        // (formulas, listas desplegables y rangos con nombre originales intactos).
+        const INVENTARIO_TEMPLATE_B64 = "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6u501eXklCgjyokKopKoIqqJGqKWqCPqByR18au6u4iqGywd6uJUdXesuiOCLrLq7nTV5eSUKCPKiQqikqgiqokaopaoI+oHJHXxq7q7iKobLB3q4lR1d6y6I4IusurudNXl5JQoI8qJCqKSqCKqiRqilqgj6gckdfGruruIqhssHeiyd6q6t3PCqjuiqS57WXX3uupyckqUEeVEBVFJVBHVRA1RS9QR9QNSuuz9qu4+ouoGS4e6OFXdPavuiKCLrLp7XXU5OSXKiHKigqgkqohqooaoJeqI+gFJXfyq7j6i6gZLh7o4Vd09q+6IoIusuntddTk5JcqIcqKCqCSqiGqihqgl6oj6AUld/KruPqLqBkuHujhV3T2r7oigi6y6e111OTklyohyooKoJKqIaqKGqCXqiPoBSV38qu4+ouoGS4e6OFXdPavuiKCLrLp7XXU5OSXKiHKigqgkqohqooaoJeqI+gFJXfyq7j6i6gZLh7o4Vd09q+6IoIusuntddTk5JcqIcqKCqCSqiGqihqgl6oj6AUld/KruPqLqBkuHujhV3T2r7oigi6y6e111OTklyohyooKoJKqIaqKGqCXqiPoBSV38qu4+ouoGS4e6OFXdPavuiKCLrLp7XXU5OSXKiHKigqgkqohqooaoJeqI+gFJXfyq7j6i6gZLh7o4Vd09q+6IoIusuntddTk5JcqIcqKCqCSqiGqihqgl6oj6AUld/KruPqLqBkuHujhV3T2r7oigi6y6e111OTklyohyooKoJKqIaqKGqCXqiPoBSV38qu4+ouoGSwe6JKdOWfduUNh1H7GpMfZLL09Ovrb/3nz39/7H10+/ePPF4vkbw1999eLZu1cvfnv26sWz81cvzp9cvTw58JMn18H0VLBMsFywQrBSsEqwWrBGsFawTrD+nil/7Nf+/OHm2z//fPPtSXHx6eLq7MPtRavy7Pvvv/v+adWn2T+efvnmw9n1+3fvz8/eXl49+SH725d/ssu5em4/JOuvu9c/vimffnE499fqyNeHI18fjrRrb+8R9Q74Llx8opBT6k1O2XofMSoka689YkYhTDeFwEwhMFMIzBQCM4XATCEwUwjMFAIzhcDs3QhmCt0xrZBf+7XzxCj0ePGJQk75Nzll/33EqJAswPaIGYUw3RQCM4XATCEwUwjMFAIzhcBMITBTCMwUAjOFwEyhO6YV8uvBdp4YhR4vPlHIKQknp2zCjxgVklXYHjGjEKabQmCmEJgpBGYKgZlCYKYQmCkEZgqBmUJgphCYKXTHtEJ+jdjOE6PQ48UnCjll4uSUnfgRo0KyFNsjZhTCdFMIzBQCM4XATCEwUwjMFAIzhcBMITBTCMwUAjOF7phWyK8b23liFHq8+EQhp3ScnLIdP2JUSNZje8SMQvx32cQZTSEcZwqBmUJgphCYKQRmCoGZQmCmEJgpBGYK3TGtkF9LtvPEKPR48YlCTjk5OWVPfsSokCzK9ogZhTDd7kJgphCYKQRmCoGZQmCmEJgpBGYKgZlCYKYQmCl0x7RCfn3ZzhOj0OPFJwo5JebklI35EaNCsjLbI2YUwnRTCMwUAjOFwEwhMFMIzBQCM4XATCEwUwjMFAIzhe6YVsivOdt5YhR6vPhEIafsnJyyOz9iVEiWZ3vEjEKYbgqBmUJgphCYKQRmCoGZQmCmEJgpBGYKgZlCYKbQHdMK+XVoO0+MQo8XnyjklKKTU7boR4wKyRptj5hRCNNNITBTCMwUAjOFwEwhMFMIzBQCM4XATCEwUwjMFLpjWiG/Nm3niVHo8eKhQolXnb4dNKnTI4NCia7TyUyd5vQ0IcsEywUrBCsFqwSrBWsEawXrBOvvmVQocazTSUydDi72RCGvOp2IOj0yKqTrdDJTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6UqcTxzqdxNTpYPGJQl51OhF1emRUSNfpZKZOc7opJOo0mSkk6jSZKSTqNJkpJOo0mSkk6jSZKXSkTieOdTqJqdPB4hOFvOp0Iur0yKiQrtPJTJ3mdFNI1GkyU0jUaTJTSNRpMlNI1GkyU0jUaTJT6EidThzrdBJTp4PFJwp51elE1OmRUSFdp5OZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTqdONbpJKZOB4tPFPKq04mo0yOjQrpOJzN1mtNNIZzRXk6LOk1mL6dFnSazl9OiTpPZy2lRp8ns5bSo0wPTL6cd67R9Ocfnf7FHsPhEIa86nYg6PTIqpOt0MlOnOd0UEnWazO5Cok6T2V1I1GkyuwuJOk1mdyFRp8nsLnSkTieOdTqJqdPB4hOFvOp0Iur0yKiQrtPJTJ3mdFNI1GkyU0jUaTJTSNRpMlNI1GkyU0jUaTJT6EidThzrdBJTp4PFJwp51elE1OmRUSFdp5OZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTqdONbpJKZOB4tPFPKq04mo0yOjQrpOJzN1mtNNIVGnyUwhUafJTCFRp8lMIVGnyUwhUafJTKEjdTpxrNNJTJ0OFg8VWnjV6dtBkzo9Mii00HV6MVOnOT1NyDLBcsEKwUrBKsFqwRrBWsE6wfp7Jl9OLxzr9CKmTgcXe6KQV51eiDo9Miqk6/Ripk5zuikk6jSZKSTqNJkpJOo0mSkk6jSZKSTqNJkpdKROLxzr9CKmTgeLTxTyqtMLUadHRoV0nV7M1GlON4VEnSYzhUSdJjOFRJ0mM4VEnSYzhUSdJjOFjtTphWOdXsTU6WDxiUJedXoh6vTIqJCu04uZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTq9cKzTi5g6HSw+UcirTi9EnR4ZFdJ1ejFTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6UqcXjnV6EVOng8UnCnnV6YWo0yOjQrpOL2bqNKebQqJOk5lCOM5eTos6TWYvp0WdJrOX06JOk9nLaVGnB6ZfTjvW6UVMnQ4WnyjkVacXok6PjArpOr2YqdOcbgqJOk1mCok6TWZ3IVGnyewuJOo0md2FRJ0ms7vQkTq9cKzTi5g6HSw+UcirTi9EnR4ZFdJ1ejFTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6UqcXjnV6EVOng8UnCnnV6YWo0yOjQrpOL2bqNKebQqJOk5lCok6TmUKiTpOZQqJOk5lCok6TmUJH6vTCsU4vYup0sPhEIa86vRB1emRUSNfpxUyd5nRTSNRpMlNI1GkyU0jUaTJTSNRpMlNI1GkyU+hInV441ulFTJ0OFg8VWnrV6dtBkzo9Mii01HV6OVOnOT1NyDLBcsEKwUrBKsFqwRrBWsE6wfp7Jl9OLx3r9DKmTgcXe6KQV50+XIHw27f8NRkZFdJ1ejlTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6UqeXjnV6GVOng8UnCnnV6aWo0yOjQrpOL2fqNKebQqJOk5lCok6TmUKiTpOZQqJOk5lCok6TmUJH6vTSsU4vY+p0sPhEIa86vRR1emRUSNfp5Uyd5nRTSNRpMlNI1GkyU0jUaTJTSNRpMlNI1GkyU+hInV461ullTJ0OFp8o5FWnl6JOj4wK6Tq9nKnTnG4KiTpNZgqJOk1mCok6TWYKiTpNZgqJOk1mCh2p00vHOr2MqdPB4hOFvOr0UtTpkVEhXaeXM3Wa000hUafJTCFRp8lMIRxnL6dFnSazl9OiTpPZy2lRpwemX0471ullTJ0OFp8o5FWnl6JOj4wK6Tq9nKnTnG4KiTpNZgqJOk1mCok6TWZ3IVGnyewuJOo0md2FjtTppWOdXsbU6WDxiUJedXop6vTIqJCu08uZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTq9dKzTy5g6HSw+UcirTi9FnR4ZFdJ1ejlTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6UqeXjnV6GVOng8UnCnnV6aWo0yOjQrpOL2fqNKebQqJOk5lCok6TmUKiTpOZQqJOk5lCok6TmUJH6vTSsU4vY+p0sHio0MqrTt8OmtTpkUGhla7Tq5k6zelpQpYJlgtWCFYKVglWC9YI1grWCdbfM/lyeuVYp1cxdTq42BOFvOr0StTpkVEhXadXM3Wa000hUafJTCFRp8lMIVGnyUwhUafJTCFRp8lMoSN1euVYp1cxdTpYfKKQV51eiTo9Miqk6/Rqpk5zuikk6jSZKSTqNJkpJOo0mSkk6jSZKSTqNJkpdKROrxzr9CqmTgeLTxTyqtMrUadHRoV0nV7N1GlON4VEnSYzhUSdJjOFRJ0mM4VEnSYzhUSdJjOFjtTplWOdXsXU6WDxiUJedXol6vTIqJCu06uZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTq9cqzTq5g6HSw+UcirTq9EnR4ZFdJ1ejVTpzndFBJ1mswUEnWazBQSdZrMFMJx9nJa1Gkyezkt6vTA9Mtpxzq9iqnTweIThbzq9ErU6ZFRIV2nVzN1mtNNIVGnyUwhUafJTCFRp8lMIVGnyewuJOo0md2FjtTplWOdXsXU6WDxiUJedXol6vTIqJCu06uZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTq9cqzTq5g6HSw+UcirTq9EnR4ZFdJ1ejVTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6UqdXjnV6FVOng8UnCnnV6ZWo0yOjQrpOr2bqNKebQqJOk5lCok6TmUKiTpOZQqJOk5lCok6TmUJH6vTKsU6vYup0sHio0NqrTt8OmtTpkUGhta7T65k6zelpQpYJlgtWCFYKVglWC9YI1grWCdbfM/lyeu1Yp9cxdTq42BOFvOr0WtTpkVEhXafXM3Wa000hUafJTCFRp8lMIVGnyUwhUafJTCFRp8lMoSN1eu1Yp9cxdTpYfKKQV51eizo9Miqk6/R6pk5zuikk6jSZKSTqNJkpJOo0mSkk6jSZKSTqNJkpdKROrx3r9DqmTgeLTxTyqtNrUadHRoV0nV7P1GlON4VEnSYzhUSdJjOFRJ0mM4VEnSYzhUSdJjOFjtTptWOdXsfU6WDxiUJedXot6vTIqJCu0+uZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTq9dqzT65g6HSw+UcirTq9FnR4ZFdJ1ej1TpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUwnH2clrU6YHpl9OOdXodU6eDxScKedXptajTI6NCuk6vZ+o0p5tCok6TmUKiTpOZQqJOk5lCok6TmUKiTpPZXehInV471ul1TJ0OFp8o5FWn16JOj4wK6Tq9nqnTnG4KiTpNZgqJOk1mCok6TWYKiTpNZgqJOk1mCh2p02vHOr2OqdPB4hOFvOr0WtTpkVEhXafXM3Wa000hUafJTCFRp8lMIVGnyUwhUafJTCFRp8lMoSN1eu1Yp9cxdTpYfKKQV51eizo9Miqk6/R6pk5zuikk6jSZKSTqNJkpJOo0mSkk6jSZKSTqNJkpdKROrx3r9DqmTgeLhwptvOr07aBJnR4ZFNroOr2ZqdOcniZkmWC5YIVgpWCVYLVgjWCtYJ1g/T2TL6c3jnV6E1Ong4s9UcirTm9EnR4ZFdJ1ejNTpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6Uqc3jnV6E1Ong8UnCnnV6Y2o0yOjQrpOb2bqNKebQqJOk5lCok6TmUKiTpOZQqJOk5lCok6TmUJH6vTGsU5vYup0sPhEIa86vRF1emRUSNfpzUyd5nRTSNRpMlNI1GkyU0jUaTJTSNRpMlNI1GkyU+hInd441ulNTJ0OFp8o5FWnN6JOj4wK6Tq9manTnG4KiTpNZgqJOk1mCok6TWYKiTpNZgqJOk1mCh2p0xvHOr2JqdPB4hOFvOr0RtTpkVEhXac3M3Wa000hUafJTCFRp8lMIVGnyUwhUafJTCFRp8lMobvj9Mtpxzq9ianTweIThbzq9EbU6ZFRIV2nNzN1mtNNIVGnyUwhUafJTCFRp8lMIVGnyUwhUafJTKEjdXrjWKc3MXU6WHyikFed3og6PTIqpOv0ZqZOc7opJOo0mSkk6jSZKSTqNJkpJOo0mSkk6jSZKXSkTm8c6/Qmpk4Hi08U8qrTG1GnR0aFdJ3ezNRpTjeFRJ0mM4VEnSYzhUSdJjOFRJ0mM4VEnSYzhY7U6Y1jnd7E1Olg8YlCXnV6I+r0yKiQrtObmTrN6aaQqNNkppCo02SmkKjTZKaQqNNkppCo02Sm0JE6vXGs05uYOh0sHiq09arTt4MmdXpkUGir6/R2pk5zepqQZYLlghWClYJVgtWCNYK1gnWC9fdMvpzeOtbpbUydDi72RCGvOr0VdXpkVEjX6e1MneZ0U0jUaTJTSNRpMlNI1GkyU0jUaTJTSNRpMlPoSJ3eOtbpbUydDhafKORVp7eiTo+MCuk6vZ2p05xuCok6TWYKiTpNZgqJOk1mCok6TWYKiTpNZgodqdNbxzq9janTweIThbzq9FbU6ZFRIV2ntzN1mtNNIVGnyUwhUafJTCFRp8lMIVGnyUwhUafJTKEjdXrrWKe3MXU6WHyikFed3oo6PTIqpOv0dqZOc7opJOo0mSkk6jSZKSTqNJkpJOo0mSkk6jSZKXSkTm8d6/Q2pk4Hi08U8qrTW1GnR0aFdJ3eztRpTjeFRJ0mM4VEnSYzhUSdJjOFRJ0mM4VEnSYzhY7U6a1jnd7G1Olg8YlCXnV6K+r0yKiQrtPbmTrN6aaQqNNkppCo02SmkKjTZKaQqNNkppCo02Sm0JE6vXWs09uYOh0sPlHIq05vRZ0eGRXSdXo7U6c53RQSdZrMFBJ1mswUEnWazBQSdZrMFBJ1mswUOlKnt451ehtTp4PFJwp51emtqNMjo0K6Tm9n6jSnm0KiTpOZQqJOk5lCok6TmUKiTpOZQqJOk5lCR+r01rFOb2PqdLD4RCGvOr0VdXpkVEjX6e1MneZ0U0jUaTJTSNRpMlNI1GkyU0jUaTJTSNRpMlPoSJ3eOtbpbUydDhYPFdp51enbQZM6PTIotNN1ejdTpzk9TcgywXLBCsFKwSrBasEawVrBOsH6eybr9M6xTu9i6nRwsScKedXpnajTI6NCuk7vZuo0p5tCok6TmUKiTpOZQqJOk5lCok6TmUKiTpOZQkfq9M6xTu9i6nSw+EQhrzq9E3V6ZFRI1+ndTJ3mdFNI1GkyU0jUaTJTSNRpMlNI1GkyU0jUaTJT6Eid3jnW6V1MnQ4WnyjkVad3ok6PjArpOr2bqdOcbgqJOk1mCok6TWYKiTpNZgqJOk1mCok6TWYKHanTO8c6vYup08HiE4W86vRO1OmRUSFdp3czdZrTTSFRp8lMIVGnyUwhUafJTCFRp8lMIVGnyUyhI3V651indzF1Olh8opBXnd6JOj0yKqTr9G6mTnO6KSTqNJkpJOo0mSkk6jSZKSTqNJkpJOo0mSl0pE7vHOv0LqZOB4tPFPKq0ztRp0dGhXSd3s3UaU43hUSdJjOFRJ0mM4VEnSYzhUSdJjOFRJ0mM4WO1OmdY53exdTpYPGJQl51eifq9MiokK7Tu5k6zemmkKjTZKaQqNNkppCo02SmkKjTZKaQqNNkptCROr1zrNO7mDodLD5RyKtO70SdHhkV0nV6N1OnOd0UEnWazBQSdZrMFBJ1mswUEnWazBQSdZrMFDpSp3eOdXoXU6eDxScKedXpnajTI6NCuk7vZuo0p5tCok6TmUKiTpOZQqJOk5lCok6TmUKiTpOZQkfq9M6xTu9i6nSweKjQ3qtO3w6a1OmRQaG9rtP7mTrN6WlClgmWC1YIVgpWCVYL1gjWCtYJ1t8zWaf3jnV6H1Ong4s9UcirTu9FnR4ZFdJ1ej9TpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6Uqf3jnV6H1Ong8UnCnnV6b2o0yOjQrpO72fqNKebQqJOk5lCok6TmUKiTpOZQqJOk5lCok6TmUJH6vTesU7vY+p0sPhEIa86vRd1emRUSNfp/Uyd5nRTSNRpMlNI1GkyU0jUaTJTSNRpMlNI1GkyU+hInd471ul9TJ0OFp8o5FWn96JOj4wK6Tq9n6nTnG4KiTpNZgqJOk1mCok6TWYKiTpNZgqJOk1mCh2p03vHOr2PqdPB4hOFvOr0XtTpkVEhXaf3M3Wa000hUafJTCFRp8lMIVGnyUwhUafJTCFRp8lMoSN1eu9Yp/cxdTpYfKKQV53eizo9Miqk6/R+pk5zuikk6jSZKSTqNJkpJOo0mSkk6jSZKSTqNJkpdKRO7x3r9D6mTgeLTxTyqtN7UadHRoV0nd7P1GlON4VEnSYzhUSdJjOFRJ0mM4VEnSYzhUSdJjOFjtTpvWOd3sfU6WDxiUJedXov6vTIqJCu0/uZOs3pppCo02SmkKjTZKaQqNNkppCo02SmkKjTZKbQkTq9d6zT+5g6HSw+UcirTu9FnR4ZFdJ1ej9TpzndFBJ1mswUEnWazBQSdZrMFBJ1mswUEnWazBQ6Uqf3jnV6H1Ong8UDhRanTnX6blBYpx+xqUL2Sy9PTr62/9589/f+x9dPv3jzxeL5G8NfffXi2btXL3579urFs/NXL86fXL08OfCTJ9fB9FSwTLBcsEKwUrBKsFqwRrBWsE6w/p6pOm2/9ucPN9/++eebb0+Ki08XV2cfbi9alWfff//d90+rPs3+8fTLNx/Ort+/e39+9vby6skP2d++/JNdztVz+yFZf929/vFN+fSLw7m/Vke+Phz5+nCkXXt7j6h3wHfh4hOFnOr04pR1+hGjQrJO2yNmFMJ0U4h1WjBTiHVaMFOIdVowU+j/8Xa3u3Uf57nGT0UljEQB1Jr/t/WiyAIc8V0kXchO0W8FK1MOdxVRpeg0SbEPaH8rsM+gPbF9k7IynLmvmdieJ9uIlfZe4qzR4sUl6lfDdZ2GTQm5TsOmhOo6rccCE+rQ6fziRUJBOj3uuk4/2Dwh1Gl9RCUhO10JuU7DpoRcp2FTQq7TsCkh12nYlJDrNGxKqK7TeiwwoQ6dzi9eJBSk0+Ou6/SDzRNCndZHVBKy05WQ6zRsSsh1GjYl5DoNmxJynYZNCblOw6aE6jqtxwIT6tDp/OJFQkE6Pe66Tj/YPCHUaX1EJSE7XQm5TsOmhFynYVNCrtOwKSHXadiUkOs0bEqortN6LDChDp3OL14kFKTT467r9IPNE0Kd1kdUErLTlZDrNGxKyHUaNiXkOg2bEnKdhk0JuU7DpoTqOq3HAhPq0On84kVCQTo97rpOP9g8IdRpfUQlITtdCblOw6aEXKdhU0Ku07ApIddp2JSQ6zRsSqiu03osMKEOnc4vXiQUpNPjruv0g80TQp3WR1QSstOVkOs0bErIdRo2JeQ6DZsScp2GTQm5TsOmhOo6rccCE+rQ6fziRUJBOj3uuk4/2Dwh1Gl9RCUhO10JuU7DpoRcp2FTQq7TsCkh12nYlJDrNGxKqK7TeiwwoQ6dzi9eJBSk0+Ou6/SDzRNCndZHVBKy05WQ6zRsSsh1GjYl5DoNmxJynYZNCblOw6aE6jqtxwIT6tDp/OJ5QkOUTt8fVOh02iyhgXV6qOi0n743+rYP2wFsh7AdwXYM2wlsL2E7he0MtvNPG+r0EKjTQ49OZy92kVCUTg+g02nzhFinh4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dHgJ1eujR6eziRUJROj2ATqfNE2KdHio67acrIdBp35QQ6LRvSgh02jclBDrtmxICnfZNCTV0egjU6aFHp7OLFwlF6fQAOp02T4h1eqjotJ+uhECnfVNCoNO+KSHQad+UEOi0b0oIdNo3JdTQ6SFQp4cenc4uXiQUpdMD6HTaPCHW6aGi0366EgKd9k0JgU77poRAp31TQqDTvikh0GnflFBDp4dAnR56dDq7eJFQlE4PoNNp84RYp4eKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnR4CdVr/OMfP/4c9sosXCUXp9AA6nTZPiHV6qOi0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpIVCnhx6dzi5eJBSl0wPodNo8IdbpoaLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOnh0CdHnp0Ort4kVCUTg+g02nzhFinh4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dHgJ1eujR6eziRUJROj2ATqfNE2KdHio67acrIdBp35QQ6LRvSgh02jclBDrtmxICnfZNCTV0egjU6aFHp7OL5wmNUTp9f1Ch02mzhEbW6bGi03763ujbPmwHsB3CdgTbMWwnsL2E7RS2M9jOP22o02OgTo89Op292EVCUTo9gk6nzRNinR4rOu2nKyHQad+UEOi0b0oIdNo3JQQ67ZsSAp32TQk1dHoM1OmxR6ezixcJRen0CDqdNk+IdXqs6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OkxUKfHHp3OLl4kFKXTI+h02jwh1umxotN+uhICnfZNCYFO+6aEQKd9U0Kg074pIdBp35RQQ6fHQJ0ee3Q6u3iRUJROj6DTafOEWKfHik776UoIdNo3JQQ67ZsSAp32TQmBTvumhECnfVNCDZ0eA3V67NHp7OJFQlE6PYJOp80TYp0eKzrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6DNTpsUens4sXCUXp9Ag6nTZPiHV6rOi0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpMVCnxx6dzi5eJBSl0yPodNo8IdbpsaLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOnx0CdHnt0Ort4kVCUTo+g02nzhFinx4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dHgN1euzR6eziRUJROj2CTqfNE2KdHis67acrIdBp35QQ6LRvSgh02jclBDrtmxICnfZNCTV0egzU6bFHp7OL5wlNUTp9f1Ch02mzhCbW6ami03763ujbPmwHsB3CdgTbMWwnsL2E7RS2M9jOP22o01OgTk89Op292EVCUTp99wrk//qW34xp84RYp6eKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnZ4CdXrq0ens4kVCUTo9gU6nzRNinZ4qOu2nKyHQad+UEOi0b0oIdNo3JQQ67ZsSAp32TQk1dHoK1OmpR6ezixcJRen0BDqdNk+IdXqq6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OkpUKenHp3OLl4kFKXTE+h02jwh1umpotN+uhICnfZNCYFO+6aEQKd9U0Kg074pIdBp35RQQ6enQJ2eenQ6u3iRUJROT6DTafOEWKenik776UoIdNo3JQQ67ZsSAp32TQmBTvumhECnfVNCDZ2eAnV66tHp7OJFQlE6PYFOp80TYp2eKjrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6CtTpqUens4sXCUXp9AQ6nTZPiHV6qui0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpKVCnpx6dzi5eJBSl0xPodNo8IdbpqaLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOnp0Cdnnp0Ort4kVCUTk+g02nzhFinp4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dngJ1eurR6ezieUJzlE7fH1TodNosoZl1eq7otJ++N/q2D9sBbIewHcF2DNsJbC9hO4XtDLbzTxvq9Byo03OPTmcvdpFQlE7PoNNp84RYp+eKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnZ4DdXru0ens4kVCUTo9g06nzRNinZ4rOu2nKyHQad+UEOi0b0oIdNo3JQQ67ZsSAp32TQk1dHoO1Om5R6ezixcJRen0DDqdNk+IdXqu6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0Ok5UKfnHp3OLl4kFKXTM+h02jwh1um5otN+uhICnfZNCYFO+6aEQKd9U0Kg074pIdBp35RQQ6fnQJ2ee3Q6u3iRUJROz6DTafOEWKfnik776UoIdNo3JQQ67ZsSAp32TQmBTvumhECnfVNCDZ2eA3V67tHp7OJFQlE6PYNOp80TYp2eKzrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6DtTpuUens4sXCUXp9Aw6nTZPiHV6rui0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpOVCn5x6dzi5eJBSl0zPodNo8IdbpuaLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOn50Cdnnt0Ort4kVCUTs+g02nzhFin54pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dngN1eu7R6ezieUJLlE7fH1TodNosoYV1eqnotJ++N/q2D9sBbIewHcF2DNsJbC9hO4XtDLbzTxvq9BKo00uPTmcvdpFQlE4voNNp84RYp5eKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnV4CdXrp0ens4kVCUTq9gE6nzRNinV4qOu2nKyHQad+UEOi0b0oIdNo3JQQ67ZsSAp32TQk1dHoJ1OmlR6ezixcJRen0AjqdNk+IdXqp6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OklUKeXHp3OLl4kFKXTC+h02jwh1umlotN+uhICnfZNCYFO+6aEQKd9U0Kg074pIdBp35RQQ6eXQJ1eenQ6u3iRUJROL6DTafOEWKeXik776UoIdNo3JQQ67ZsSAp32TQmBTvumhECnfVNCDZ1eAnV66dHp7OJFQlE6vYBOp80TYp1eKjrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6CdTppUens4sXCUXp9AI6nTZPiHV6qei0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpJVCnlx6dzi5eJBSl0wvodNo8IdbppaLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOnl0CdXnp0Ort4kVCUTi+g02nzhFinl4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dXgJ1eunR6ezieUKrKJ2+P6jQ6bRZQivW6VVFp/30vdG3fdgOYDuE7Qi2Y9hOYHsJ2ylsZ7Cdf9pQp1eBOr3q0ensxS4SitLpFeh02jwh1ulVRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk6vAnV61aPT2cWLhKJ0egU6nTZPiHV6VdFpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHTq0CdXvXodHbxIqEonV6BTqfNE2KdXlV02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9CpQp1c9Op1dvEgoSqdXoNNp84RYp1cVnfbTlRDotG9KCHTaNyUEOu2bEgKd9k0JgU77poQaOr0K1OlVj05nFy8SitLpFeh02jwh1ulVRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk6vAnV61aPT2cWLhKJ0egU6nTZPiHV6VdFpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHTq0CdXvXodHbxIqEonV6BTqfNE2KdXlV02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9CpQp1c9Op1dvEgoSqdXoNNp84RYp1cVnfbTlRDotG9KCHTaNyUEOu2bEgKd9k0JgU77poQaOr0K1OlVj05nFy8SitLpFeh02jwh1ulVRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk6vAnV61aPT2cXzhNZROn1/UKHTabOE1qzT64pO++l7o2/7sB3AdgjbEWzHsJ3A9hK2U9jOYDv/tKFOrwN1et2j09mLXSQUpdNr0Om0eUKs0+uKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnV4H6vS6R6ezixcJRen0GnQ6bZ4Q6/S6otN+uhICnfZNCYFO+6aEQKd9U0Kg074pIdBp35RQQ6fXgTq97tHp7OJFQlE6vQadTpsnxDq9rui0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpdaBOr3t0Ort4kVCUTq9Bp9PmCbFOrys67acrIdBp35QQ6LRvSgh02jclBDrtmxICnfZNCTV0eh2o0+senc4uXiQUpdNr0Om0eUKs0+uKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnV4H6vS6R6ezixcJRen0GnQ6bZ4Q6/S6otN+uhICnfZNCYFO+6aEQKd9U0Kg074pIdBp35RQQ6fXgTq97tHp7OJFQlE6vQadTpsnxDq9rui0n66EQKd9U0Kg074pIdBp35QQ6LRvSgh02jcl1NDpdaBOr3t0Ort4kVCUTq9Bp9PmCbFOrys67acrIdBp35QQ6LRvSgh02jclBDrtmxICnfZNCTV0eh2o0+senc4uXiQUpdNr0Om0eUKs0+uKTvvpSgh02jclBDrtmxICnfZNCYFO+6aEQKd9U0INnV4H6vS6R6ezi+cJbaJ0+v6gQqfTZgltWKc3FZ320/dG3/ZhO4DtELYj2I5hO4HtJWynsJ3Bdv5pQ53eBOr0pkensxe7SChKpzeg02nzhFinNxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6vQnU6U2PTmcXLxKK0ukN6HTaPCHW6U1Fp/10JQQ67ZsSAp32TQmBTvumhECnfVNCoNO+KaGGTm8CdXrTo9PZxYuEonR6AzqdNk+IdXpT0Wk/XQmBTvumhECnfVNCoNO+KSHQad+UEOi0b0qoodObQJ3e9Oh0dvEioSid3oBOp80TYp3eVHTaT1dCoNO+KSHQad+UEOi0b0oIdNo3JQQ67ZsSauj0JlCnNz06nV28SChKpzeg02nzhFinNxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6vQnU6U2PTmcXLxKK0ukN6HTaPCHW6U1Fp/10JQQ67ZsSAp32TQmBTvumhECnfVNCoNO+KaGGTm8CdXrTo9PZxYuEonR6AzqdNk+IdXpT0Wk/XQmBTvumhECnfVNCoNO+KSHQad+UEOi0b0qoodObQJ3e9Oh0dvEioSid3oBOp80TYp3eVHTaT1dCoNO+KSHQad+UEOi0b0oIdNo3JQQ67ZsSauj0JlCnNz06nV28SChKpzeg02nzhFinNxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6vQnU6U2PTmcXzxPaRun0/UGFTqfNEtqyTm8rOu2n742+7cN2ANshbEewHcN2AttL2E5hO4Pt/NOGOr0N1Oltj05nL3aRUJROb0Gn0+YJsU5vKzrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6G6jT2x6dzi5eJBSl01vQ6bR5QqzT24pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2d3gbq9LZHp7OLFwlF6fQWdDptnhDr9Lai0366EgKd9k0JgU77poRAp31TQqDTvikh0GnflFBDp7eBOr3t0ens4kVCUTq9BZ1OmyfEOr2t6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OltoE5ve3Q6u3iRUJROb0Gn0+YJsU5vKzrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6G6jT2x6dzi5eJBSl01vQ6bR5QqzT24pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2d3gbq9LZHp7OLFwlF6fQWdDptnhDr9Lai0366EgKd9k0JgU77poRAp31TQqDTvikh0GnflFBDp7eBOr3t0ens4kVCUTq9BZ1OmyfEOr2t6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OltoE5ve3Q6u3iRUJROb0Gn0+YJsU5vKzrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6G6jT2x6dzi6eJTTtBun0x4NynX6wlQnpoS92dp7oPy+++u35N18+/uzFZ+PTF5p/9atnn795/uwPnz9/9vnr589eP7r5Yudu33n0ITt9D7Z92A5gO4TtCLZj2E5gewnbKWxnsJ1/2kin9dgv3t7++hff3f565/Dy3eXNxdv7F+34YP/Vq69ePT4+39v/58e/fPH24sPVm6vXF99e3zz6ev8ff/l3ejnnp/phWJ6cffnNi6PHn9099xP6mV/e/cwv736mXnt9RugT8FV+8SKhIJ2edl2nH2yeEOq0PqKSkJ2uhFynYVNCrtOwKSHXadiUkOs0bErIdRo2JVTXaT0WmFCHTucXLxIK0ulp13X6weYJoU7rIyoJ2elKyHUaNiXkOg2bEnKdhk0JuU7DpoRcp2FTQnWd1mOBCXXodH7xIqEgnZ52XacfbJ4Q6rQ+opKQna6EXKdhU0Ku07ApIddp2JSQ6zRsSsh1GjYlVNdpPRaYUIdO5xcvEgrS6WnXdfrB5gmhTusjKgnZ6UrIdRo2JeQ6DZsScp2GTQm5TsOmhFynYVNCdZ3WY4EJdeh0fvEioSCdnnZdpx9snhDqtD6ikpCdroRcp2FTQq7TsCkh12nYlJDrNGxKyHUaNiVU12k9FphQh07nFy8SCtLpadd1+sHmCaFO6yMqCdnpSsh1GjYl5DoNmxJynYZNCblOw6aEXKdhU0J1ndZjgQl16HR+8SKhIJ2edl2nH2yeEOq0PqKSkJ2uhFynYVNCrtOwKSHXadiUkOs0bErIdRo2JVTXaT0WmFCHTucXLxIK0ulp13X6weYJoU7rIyoJ2elKyHUaNiXkOg2bEnKdhk0JuU7DpoRcp2FTQnWd1mOBCXXodH7xIqEgnZ52XacfbJ4Q6rQ+opKQna6EXKdhU0Ku07ApIddp2JSQ6zRsSsh1GjYlVNdpPRaYUIdO5xfPExqidPr+oEKn02YJDazTQ0Wn/fS9ybd92A5gO4TtCLZj2E5gewnbKWxnsJ1/2lCnh0CdHnp0Onuxi4SidHoAnU6bJ8Q6PVR02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9BCo00OPTmcXLxKK0ukBdDptnhDr9FDRaT9dCYFO+6aEQKd9U0Kg074pIdBp35QQ6LRvSqih00OgTg89Op1dvEgoSqcH0Om0eUKs00NFp/10JQQ67ZsSAp32TQmBTvumhECnfVNCoNO+KaGGTg+BOj306HR28SKhKJ0eQKfT5gmxTg8VnfbTlRDotG9KCHTaNyUEOu2bEgKd9k0JgU77poQaOj0E6vTQo9PZxYuEonR6AJ1OmyfEOj1UdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQQqNP6xzl+/j/skV28SChKpwfQ6bR5QqzTQ0Wn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOD4E6PfTodHbxIqEonR5Ap9PmCbFODxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6PQTq9NCj09nFi4SidHoAnU6bJ8Q6PVR02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9BCo00OPTmcXLxKK0ukBdDptnhDr9FDRaT9dCYFO+6aEQKd9U0Kg074pIdBp35QQ6LRvSqih00OgTg89Op1dPE9ojNLp+4MKnU6bJTSyTo8VnfbT9ybf9mE7gO0QtiPYjmE7ge0lbKewncF2/mlDnR4DdXrs0ensxS4SitLpEXQ6bZ4Q6/RY0Wk/XQmBTvumhECnfVNCoNO+KSHQad+UEOi0b0qoodNjoE6PPTqdXbxIKEqnR9DptHlCrNNjRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk6PgTo99uh0dvEioSidHkGn0+YJsU6PFZ3205UQ6LRvSgh02jclBDrtmxICnfZNCYFO+6aEGjo9Bur02KPT2cWLhKJ0egSdTpsnxDo9VnTaT1dCoNO+KSHQad+UEOi0b0oIdNo3JQQ67ZsSauj0GKjTY49OZxcvEorS6RF0Om2eEOv0WNFpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHTY6BOjz06nV28SChKp0fQ6bR5QqzTY0Wn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOj4E6PfbodHbxIqEonR5Bp9PmCbFOjxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6PQbq9Nij09nFi4SidHoEnU6bJ8Q6PVZ02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9Bio02OPTmcXLxKK0ukRdDptnhDr9FjRaT9dCYFO+6aEQKd9U0Kg074pIdBp35QQ6LRvSqih02OgTo89Op1dPE9oitLp+4MKnU6bJTSxTk8VnfbT9ybf9mE7gO0QtiPYjmE7ge0lbKewncF2/mlDnZ4CdXrq0ensxS4SitLpu1cg/9e3/GZKmyfEOj1VdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQUqNNTj05nFy8SitLpCXQ6bZ4Q6/RU0Wk/XQmBTvumhECnfVNCoNO+KSHQad+UEOi0b0qoodNToE5PPTqdXbxIKEqnJ9DptHlCrNNTRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk5PgTo99eh0dvEioSidnkCn0+YJsU5PFZ3205UQ6LRvSgh02jclBDrtmxICnfZNCYFO+6aEGjo9Ber01KPT2cWLhKJ0egKdTpsnxDo9VXTaT1dCoNO+KSHQad+UEOi0b0oIdNo3JQQ67ZsSauj0FKjTU49OZxcvEorS6Ql0Om2eEOv0VNFpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHTU6BOTz06nV28SChKpyfQ6bR5QqzTU0Wn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOT4E6PfXodHbxIqEonZ5Ap9PmCbFOTxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6PQXq9NSj09nFi4SidHoCnU6bJ8Q6PVV02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9BSo01OPTmcXzxOao3T6/qBCp9NmCc2s03NFp/30vcm3fdgOYDuE7Qi2Y9hOYHsJ2ylsZ7Cdf9pQp+dAnZ57dDp7sYuEonR6Bp1OmyfEOj1XdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQcqNNzj05nFy8SitLpGXQ6bZ4Q6/Rc0Wk/XQmBTvumhECnfVNCoNO+KSHQad+UEOi0b0qoodNzoE7PPTqdXbxIKEqnZ9DptHlCrNNzRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk7PgTo99+h0dvEioSidnkGn0+YJsU7PFZ3205UQ6LRvSgh02jclBDrtmxICnfZNCYFO+6aEGjo9B+r03KPT2cWLhKJ0egadTpsnxDo9V3TaT1dCoNO+KSHQad+UEOi0b0oIdNo3JQQ67ZsSauj0HKjTc49OZxcvEorS6Rl0Om2eEOv0XNFpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHTc6BOzz06nV28SChKp2fQ6bR5QqzTc0Wn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOz4E6PffodHbxIqEonZ5Bp9PmCbFOzxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6PQfq9Nyj09nFi4SidHoGnU6bJ8Q6PVd02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9Byo03OPTmcXzxNaonT6/qBCp9NmCS2s00tFp/30vcm3fdgOYDuE7Qi2Y9hOYHsJ2ylsZ7Cdf9pQp5dAnV56dDp7sYuEonR6AZ1OmyfEOr1UdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQSqNNLj05nFy8SitLpBXQ6bZ4Q6/RS0Wk/XQmBTvumhECnfVNCoNO+KSHQad+UEOi0b0qoodNLoE4vPTqdXbxIKEqnF9DptHlCrNNLRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk4vgTq99Oh0dvEioSidXkCn0+YJsU4vFZ3205UQ6LRvSgh02jclBDrtmxICnfZNCYFO+6aEGjq9BOr00qPT2cWLhKJ0egGdTpsnxDq9VHTaT1dCoNO+KSHQad+UEOi0b0oIdNo3JQQ67ZsSauj0EqjTS49OZxcvEorS6QV0Om2eEOv0UtFpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHTS6BOLz06nV28SChKpxfQ6bR5QqzTS0Wn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOL4E6vfTodHbxIqEonV5Ap9PmCbFOLxWd9tOVEOi0b0oIdNo3JQQ67ZsSAp32TQmBTvumhBo6vQTq9NKj09nFi4SidHoBnU6bJ8Q6vVR02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9BKo00uPTmcXzxNaRen0/UGFTqfNElqxTq8qOu2n702+7cN2ANshbEewHcN2AttL2E5hO4Pt/NOGOr0K1OlVj05nL3aRUJROr0Cn0+YJsU6vKjrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6FajTqx6dzi5eJBSl0yvQ6bR5QqzTq4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dXgXq9KpHp7OLFwlF6fQKdDptnhDr9Kqi0366EgKd9k0JgU77poRAp31TQqDTvikh0GnflFBDp1eBOr3q0ens4kVCUTq9Ap1OmyfEOr2q6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OlVoE6venQ6u3iRUJROr0Cn0+YJsU6vKjrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6FajTqx6dzi5eJBSl0yvQ6bR5QqzTq4pO++lKCHTaNyUEOu2bEgKd9k0JgU77poRAp31TQg2dXgXq9KpHp7OLFwlF6fQKdDptnhDr9Kqi0366EgKd9k0JgU77poRAp31TQqDTvikh0GnflFBDp1eBOr3q0ens4kVCUTq9Ap1OmyfEOr2q6LSfroRAp31TQqDTvikh0GnflBDotG9KCHTaNyXU0OlVoE6venQ6u3iRUJROr0Cn0+YJsU6vKjrtpysh0GnflBDotG9KCHTaNyUEOu2bEgKd9k0JNXR6FajTqx6dzi6eJ7SO0un7gwqdTpsltGadXld02k/fm3zbh+0AtkPYjmA7hu0EtpewncJ2Btv5pw11eh2o0+senc5e7CKhKJ1eg06nzRNinV5XdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQ6UKfXPTqdXbxIKEqn16DTafOEWKfXFZ3205UQ6LRvSgh02jclBDrtmxICnfZNCYFO+6aEGjq9DtTpdY9OZxcvEorS6TXodNo8IdbpdUWn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOrwN1et2j09nFi4SidHoNOp02T4h1el3RaT9dCYFO+6aEQKd9U0Kg074pIdBp35QQ6LRvSqih0+tAnV736HR28SKhKJ1eg06nzRNinV5XdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQ6UKfXPTqdXbxIKEqn16DTafOEWKfXFZ3205UQ6LRvSgh02jclBDrtmxICnfZNCYFO+6aEGjq9DtTpdY9OZxcvEorS6TXodNo8IdbpdUWn/XQlBDrtmxICnfZNCYFO+6aEQKd9U0Kg074poYZOrwN1et2j09nFi4SidHoNOp02T4h1el3RaT9dCYFO+6aEQKd9U0Kg074pIdBp35QQ6LRvSqih0+tAnV736HR28SKhKJ1eg06nzRNinV5XdNpPV0Kg074pIdBp35QQ6LRvSgh02jclBDrtmxJq6PQ6UKfXPTqdXTxPaBOl0/cHFTqdNktowzq9qei0n743+bYP2wFsh7AdwXYM2wlsL2E7he0MtvNPG+r0JlCnNz06nb3YRUJROr0BnU6bJ8Q6vanotJ+uhECnfVNCoNO+KSHQad+UEOi0b0oIdNo3JdTQ6U2gTm96dDq7eJFQlE5vQKfT5gmxTm8qOu2nKyHQad+UEOi0b0oIdNo3JQQ67ZsSAp32TQk1dHoTqNObHp3OLl4kFKXTG9DptHlCrNObik776UoIdNo3JQQ67ZsSAp32TQmBTvumhECnfVNCDZ3eBOr0pkens4sXCUXp9AZ0Om2eEOv0pqLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOnN4E6venR6eziRUJROr0BnU6bJ8Q6vanotJ+uhECnfVNCoNO+KSHQad+UEOi0b0oIdNo3JdTQ6U2gTm96dDq7eJFQlE5vQKfT5gmxTm8qOu2nKyHQad+UEOi0b0oIdNo3JQQ67ZsSAp32TQk1dHoTqNObHp3OLl4kFKXTG9DptHlCrNObik776UoIdNo3JQQ67ZsSAp32TQmBTvumhECnfVNCDZ3eBOr0pkens4sXCUXp9AZ0Om2eEOv0pqLTfroSAp32TQmBTvumhECnfVNCoNO+KSHQad+UUEOnN4E6venR6eziRUJROr0BnU6bJ8Q6vanotJ+uhECnfVNCoNO+KSHQad+UEOi0b0oIdNo3JdTQ6U2gTm96dDq7eJ7QNkqn7w8qdDptltCWdXpb0Wk/fW/ybR+2A9gOYTuC7Ri2E9hewnYK2xls55821OltoE5ve3Q6e7GLhKJ0egs6nTZPiHV6W9FpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHT20Cd3vbodHbxIqEond6CTqfNE2Kd3lZ02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9DZQp7c9Op1dvEgoSqe3oNNp84RYp7cVnfbTlRDotG9KCHTaNyUEOu2bEgKd9k0JgU77poQaOr0N1Oltj05nFy8SitLpLeh02jwh1ultRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk5vA3V626PT2cWLhKJ0egs6nTZPiHV6W9FpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHT20Cd3vbodHbxIqEond6CTqfNE2Kd3lZ02k9XQqDTvikh0GnflBDotG9KCHTaNyUEOu2bEmro9DZQp7c9Op1dvEgoSqe3oNNp84RYp7cVnfbTlRDotG9KCHTaNyUEOu2bEgKd9k0JgU77poQaOr0N1Oltj05nFy8SitLpLeh02jwh1ultRaf9dCUEOu2bEgKd9k0JgU77poRAp31TQqDTvimhhk5vA3V626PT2cWLhKJ0egs6nTZPiHV6W9FpP10JgU77poRAp31TQqDTvikh0GnflBDotG9KqKHT20Cd3vbodHbxLKF5N0inPx6U6/SDrUxID32xs/NE/3nx1W/Pv/ny8WcvPhufvtD8q189+/zN82d/+Pz5s89fP3/2+tHNFzt3+86jD9npe7Dtw3YA2yFsR7Adw3YC20vYTmE7g+3800Y6rcd+8fb217/47vbXO4eX7y5vLt7ev2jHB/uvXn316vHx+d7+Pz/+5Yu3Fx+u3ly9vvj2+ubR1/v/+Mu/08s5P9UPw/Lk7MtvXhw9/uzuuZ/Qz/zy7md+efcz9drrM0KfgK/yixcJBen0vOs6/WDzhFCn9RGVhOx0JeQ6DZsScp2GTQm5TsOmhFynYVNCrtOwKaG6TuuxwIQ6dDq/+MeEPv/wu8vL272L2wt9pV+/+/bq9ur63cXbg+ub31/c3l69++7Rh3+/uXzzxc75+PT+V6mf9ubV928vH93+6f3lFzuvL9++Pf6w8+jbP745/lZvD3oZ3t9cXd9c3f7pix1x6/V7fcncXust5PLfv9fXzvNnb3T0928vnu/80+XNt5c7eq/5YdC7zf3Jf+UZ9D6UnkEa13iGL//8/dtHr68u317/5KfRbyrpWQQ2jWd5df3h4tHrtxc3P/1Z9N1Pehb9mb7xLIc3Vx9+5rPo2/T0LPpjX+NZXly8+Z//85NfLJ2ZnkDP1niCs+sbvUf+5GfQa5OeQa/aX3uhrj+8/v5nfD70iU5PowRabf3+4ubq7c8oS8mm5xhUc+NJTq/eXvzk10pfdQ+eQF+Qf+Ur5Kd/CWZP0P4iv/vi+MlPkH2JD+2v8VfX/4tz+hzfzp4/+1bvdf908fZK/623On1NXX//7vaLnZXemvKHfniHe3v14Xbn0YU+1f/xm7cX7/5Nb3L6Tujjm+LR+PTjbzl/vHn6/ZXe//5z94e//l7/Pd79sPv3u9PdDw/++t/pXXB4vrP/R72HXr67vXxy9v2fHv3m+8t3108+/vjl68v3txf/+vbyyd7l7eXdu2r2pTP85b10fL77l7fRUd+15b+On/HrOh6f6jsv/Tp/3K9r+PiLy39dr67evf6f//vuyafvmv5yw7/hvU/Gpx9/a/9x9x7p3sN//9eTUX9P+nvW34v+Xv33f6WI/4b3fzk+1XeyP/p1V1h3f2Wv+93Lfv3uX75WL5cf/n+85qfj04/fJv2411zfx9qdd47f3X0ToC/IP1w/Ob1S63pvffBV/Td8xc/Gp/q+/Ee/4gvcXn8EOH61/+Kbx8cHjz871v+1/Yfy9eeEHz4Zhzu/uPj9+19//dvffP3N8Te//Wb/8Wcn45MdRXX33f79Yzv/8vHnfHaqB374kknT/ffTH79N+vGvRfE28OH5s/cX312eXdx8d6W3vbeXb/Sut/sPd/+Gk5ur7373l//l9vr9/Vvcv17f3l7//v5//N3lxbeX+hZu9x+WYdgMw+6o/ycZ4+6s3+rfXF/r00UP6Y+Pd8/39eXt9+8fvb/Q94FfX/1Z3zHe/baqNt/d3r//frHz/vrm9ubiSu+xv9P+52s98Hbv/dUXO6p759EfLm9u9ceqtNz9qfQ/rm/+7f771uf/DwAA//8DAFBLAwQUAAYACAAAACEAtlGYhkIDAAAsDAAAEwAAAHhsL3RoZW1lL3RoZW1lMS54bWzMVt1umzAYvZ+0d7B83wYSkoaopGrSoF1MmtR2D+CAIbTGIOz15+33+TMhEJo221JpuYjAHB/7O/Y59uXVSy7IE69UVsiAuucOJVxGRZzJNKA/78OzKSVKMxkzUUge0Feu6NX865dLNtMbnnMC/aWasYButC5ng4GKoJmp86LkEr4lRZUzDa9VOogr9gy8uRgMHWcyyFkmKZEsB9ofSZJFnNwbSjrfkq8EvEqtTEMkqjtDzTs9EBs/ugahqnS9FBV5YiKgDv7oYH45YLMaIHQfF+KvxtWA+HHY43NDz7+4afgQIHQft1qtliu34UMAiyKooj+2F07dxZazBbKPfe6lM3a8Lr7FP+rN2V8sFmO/noslRZB99Hr4qTPxrocdPIIsftzDe4vr5XLSwSPI4ic9fHjhT7wuHkEbkcnHN1cwDGv2BpIU4tub8Cks+NSp4TsUrH6zc8wQSSH1oX2Us4eiCgFggILpTBL9WvKERbBDlyxfVxkzA7AZZ60vtilSe00wcocwz+R77CID+j9j3xHCWLvCsMy8rhJfMiHu9Kvg3xWWpgqRxSE0ouZoqsY35QYeaxU7uLRiTZ9U1UypImWhwG3oQ7Q+36NCM2dSW1uOjS239NuR0aMpunxLODLAY0lHF8eRujYTDlbdnaqLU7AB0lTWTBUUb1SA/UiYyUt3AsFm5kJUxASPocWuqM4Ev+WRtmwdKf9BVrVhMa91NbUdoatxyQe6tlj90emEbdN679EeqSxWC4fQAWWNI/a2vZBtEwhJngPqj4djSiJWBjQBx8NjXsKyKZlSwkQKR2KkK9yHZaX0DVMbqzdaY5vyEvMC+YZjqO2UhKMprOwpCEGQrgA8SWBHtiVptWDIIQCcbnftm1+x+0nBMM/+zNapiav/JMPM7j3GaxZ3ZNp427SBe8zO1r7/KQbElDqYFm0DlkxviPkDI2RVJOzlzDjrvjCBRuCqZTOd6ICe2XghVdO4hgi0jXYTGSobs58RiHBi1+dMe8x+eJvstgfXMUdCaz1MHh5e+r8Xrpawo1v7qPxINhh53yImAHeXAHjD63r7Rl2sH2AFb+B+80toZe81L7picIDbG1Jjfew6/w0AAP//AwBQSwMEFAAGAAgAAAAhAEuWiogQBwAANzIAAA0AAAB4bC9zdHlsZXMueG1s1Fttj6JIEP5+yf0HwneXRoSRibrxjWSTvcslO5fcV0TUzvJiAGedvdx/v6pGaITGFxZnWU1mpNuuerq6qqu6qxx9PPqe9OpGMQ2Dsax+ILLkBk64psF2LP/9YvWGshQndrC2vTBwx/KbG8sfJ7//NoqTN8/9snPdRAISQTyWd0myf1aU2Nm5vh1/CPduAD2bMPLtBB6jrRLvI9dexzjI95Q+IYbi2zSQUwrPvnMLEd+Ovh72PSf093ZCV9SjyRujJUu+8/xpG4SRvfIA6lEd2I50VI2oLx2jjAlrrfDxqROFcbhJPgBdJdxsqONW4ZqKqdgOpwSUm1FSdYX0z+Z+jBpSGiiR+0px+eTJaBMGSSw54SFIYDFVQIoyeP4ahN8CC/ug9fS1ySj+Lr3aHvueMhk5oRdGUgJrB6JTZWgJbN9NvzG3PbqKKDZubJ96b2lzHxucnR3FoAQpKWxREEWKZTJaQUPOaMAGMEbRdjWWLYtYxtKYnnObRtT2biBNi6RJhbRu6Uu9Iekz1EwYqXhOqC32aob6jHS7qHM5ty+MoqzNVkX9OMpXJN3aIqZm8E5abU7xfa/qMZOMwSap5/H94Qm3AmiZjGAnTdwosOBBOn1+edvDRhDApp/aNPvelW9vI/tN7eu3D4hDj64RxXYult+q1EGG8Gb0C5Bxy7kFXg03rgglbrg7WelsWuSWEy1zyzcVpT1uJlkuTSawErfh03y5nLUsSU60xI3DaHFuljUz5mxzrkjSNOfzlue20PCNREvc5uzVtiRnA10VcZv1tWl/2TI3U3siC6YMZS15hL0NZvgWSJJ77Fa1BKIMkQWguaUdLXJbLKZksRDMzbIeoJOqNViaTNEr+6RhtG8BxtMwdT3vYW9c0ct7ialphlFrAcwVgKtbhdEajjVZMDwAL5M2TUaeu0nAjiO63eH/JNyjVYdJAqH/ZLSm9jYMbA8j2WzEDSPhlAQHorHsu2t68IHbWcS4MIdLwsJfoImMrvPJCCY7OCGVyBX2HJzMaS43jmDzZtO+cQAIKJPPjSMeN8d0vX4K8JM2gG45rud9weX+Z8OjKVij40YKDr7lJ5/WYxlO0ngQyj5CgHL6mCpT+oBKVqSW0i6Q1fqN6ErHTc6gDpUOAEWoNDg2nkZL9n7vveHJEc+E6dOMGRZ/nnp0G/hu+pXJCI6K6SPeKiTUwRMmKJAsfYvs/Yt7ZJRw2sdNvcAAQgatL0tFgV2EhvHrXcAcgO3C1cA92MwascF6i8UGk61bgqd7aaVL8AiR3w3lwrSM7kwL1Eeo5Hg3cpOSX5gm0BDSbqIJXdb4AZ8nwOTWCLK9JMNza3yPbaOwo3UbaEGi8PHXkOgvAxTM72aJcq28YOeF1QINe/Rq7cKIfgePi47z5J+uucs6T37FQN/DJAuyA6/QQdkVAIIL7DZAyMV0ECCgytwgxEbdBqjeszk0dGANDLggQszadFsL1bOQ/DFBQAMZFgwZbs66rofv4E1/UA+76eqKltJ5h9IsEnncGa/ukPHoQL7JMRt3auHp6uag5kJEV3cqvIc2u7eBm5rCddDZZVB+rSNhIn0s/4mFEF7hyLQ6UC+hgeAiCGiuj4WrJbwDggZhTr2a622Y2CwnAiuJjiupB4Uh/PkwF/k1tfBevysw+d19KzAbVjtcXXSe0Og0zCvJnK4sOk99dVo3eT6w0zCHeZK02yaUZ447bkJZOr3TMK8ULtxr6Y/aN69UPKQw8S/4+gTrFVk+KQ8gIPhZuxv74CUveedY5p//YFlGCFdO3/qLvoYJIzGW+efPmOFUWa6UZSOBFw3W7tFds3IbeISCtvPKG4IvTK6We3hUUe2pG0NIlmIX8bGsOj51CJCeaAy2i3uGtfMhUNog5oND0iKjMmosPhKPwXbxGF7hWKbGk7giPmJqfGcuj+HRWWV98oqjKoI6uRkGFOcyxSmP4eFVdU2zooPKmHwHFOmBeKaoOfdqyGU9qFvTeu3Nis1u115C5nMxamwX9/CtQmRzJiu3rGhIXr5VHZMVmlRWIa9NqY7Jtv5yD5ZaiFFrGuqvyBqRf50F1/Xw+ogqNtRFER++dZfH8CLJ6splxSPVmZqmWOMJ0TQxAg1eNftBHppUsOXlK+UefiIo9/Cw8bwHNVc8H2wXzycdI0KNY8TzIcQE1OIx2COSW0pNpL1pj8aq25SSP1IyPwWFAp9jKGyB/9IhomP53+XsyVwsrX5vSGbD3kBz9Z6pzxY9fTCfLRaWSfpk/l+hyv8HavzZjxIga68OnmMPfgkQnZzzydl+4W1jufCQultWmQSwi9jNvkGmukp6lkbU3sCwh72hoek9S1f7C2MwW4IuF7DrDX8LQBRVTX9VgOD154T6rkeDLLbIIopiKwQV8HhhEkq2Egr/xcfkfwAAAP//AwBQSwMEFAAGAAgAAAAhAFKKvGWkFAAAYTUAABQAAAB4bC9zaGFyZWRTdHJpbmdzLnhtbKyby24c13aG5wHyDhs9IpE2KfkWH90MiqQVBhQpULTn1dWbzSKqq/rUhRA1yugAGWQSnAeIhhoYyIEGAYwAB3C/iZ8k3792VXV3VZOygQxskXXZtfa6/utfm8++fzdP3a0vyiTPno8e7z0aOZ/F+TTJZs9HP17+8MV3I1dWUTaN0jzzz0d3vhx9/+If/+FZWVaOd7Py+ei6qhZP9vfL+NrPo3IvX/iMO1d5MY8qfi1m++Wi8NG0vPa+mqf7Xz569O3+PEqykYvzOquej77+ju/WWfLn2h+GK4+/fTR68axMXjyrXpxktz6roiLJ3ctkkiZ55ePI/ZTcRu63f/urO8nKqqjjKrnN3dS7OFpUdRGNWTut51nkFnnR/vxsv3rxbF+rhpWPy7j2aeTeFMmc9SP3Ok+TzJa5yMuodL/+jzs8vHSP/nT05uLxd998d2ZXkjjN3ZePvvz2C/73z/1FD8N3+5d//fuRd9PlpwwZS+/ySZX4zDufumlU5d8PVll+mkuQOJkmhdt3WV5FZf+hN3lRRdOof/mHvMpnRXS1/DlyufNlHGXeNsVW0YZeYeXU+Rs/X6RR4XaiIr6W/hZFvkjyMV8LqqyWH9J8lu/u9T9x8Od6+bM7O9dWkqz0LOpYHTXOfMa7WVW0X4x9yvdkKZ6NtA9tOsvnkwKFcKn5dq4FirqK9n+8OHXTXIriyqyOCtTmdvzNnhu9/OmLR4+/+XrvZjEbsTfux1Gx8KzJ00dFcut399wxHtuZ379Lysq7RVREDv/SK9EiTeIoTjCGXQqWwG3LaCp9mTvhQ4Vb1B7ZfZZG7/ktluIKn81SvRnnmSvrdss4eLrnjvxVgstNfYk4dxE+LUHkv+FrXB1unAdKyZgh5o68NdgFM6CneVLiB2e//rc2iGiRu0rSaHe1H9kR+WKtLA0X+XxhEizq5cdyYDhWGtiyrvL58kOVxLnbuVp+KuY1X9hzZ7Zemno2Ebk5phus9tY77O1RbZkTExGylHGRTHDZOnPV8ueq5nJWe3wLv0D3kn7PvU2K28Ym7J7Y1laj2yhjG9KkuWfSxb05pFkwkWslV5jPXkmTSTGU6jJ8955o2XR9gqTUxuUaTURm2/d6WURZu7kKEeMcw0RI5RGazTWRZbLyKxtK9cROmpf2UynrxAq/DM/l59Tz2Fw6y9zVWsjeyXMy3pomvsDJfFHkhedXYqVCuXXwpQh/KTHT20R6beOa5yYJSWy2/F9PDgzJsHCj43IRLf+Wp6SSEznwx3I0DGocobhPaySH5YeZvDv1M4Te0UebK0q7xfLjNKnyUvsn86dz82e0UHjVl17+GWYUtrFKC7hyq1nUvEh9Zf7TqXhSk9QKXCs41aZkphhpa+pv7KGEihYWGWz5WDKT+dPBttc3O3ytbBO3OY5SARFUuiucoVawExAydnZVK43pPpsrfYrI/B7SQurjYMmQ2g5kxvMiSflH2fkn6kOVU49L5bLm2eBdrdCWVXncdxd4+Acyp33lsE5VCd0xn6eaEDNb8jg+MSg9rdMoJrkviY/fXh7oM0FgXy58vPxZYTgMnCDi6tUFxVUZYlFTu9u0G3J7PlHmSEge1AxSYMKGhynr5O3Ls2GRpcJErdPvxMtP02Rmkk6ioojKXUJswyuGqcv8rSuBeFwIf33N3SYlSIN0jOMsf8F4yJdnlAxAUEkRqxLKUsk3onSGMfEGqcZuvj1+szsOrmflyaof709SsltuWbVNbC5LMO0iCbnMPoxecja2UrU8IdSAJptu8UUKeu6aRNZX1PmE4nzbFDughI+tVq4V/5Cr5rkC1jTY5d2o2Ob4JPabWrul+t3xP4xILutlUJxSBcPtHL+j/lsq2Hev6zv3kvDISULtvwexX1SRdL1P9aw8KK9gO6iQx/iUwJH5GPFE1CtNI3CmBIdd4qhBKANB3xR57CkWhOIA9aUNzukA0JNu6SZIx2xollfJIsfGeKZXGOT4O5lC4TA6VeFRSk7dBekFPCDg3GXhXCG/ctBtzsddFXSBQWWFdnHcZyzQlnbVM875AHXPsoj5W8ilfL7bfumuCR9KN6WsdKwhIYcymiIpLsHTiZiEQpa8R984NZUMAPLbX/7Tjdot7bnDOkr/XFOH5JbgLW3b7SgWpuATpVVZy37yhbSzG1Z4ZaggHRkYIxPLilMPxLK0nDpyLsBhv82I1EqtPBai5AnA5UenOumnNXsUMtW38Q7rAkpP1qhNxT5LpkMA8EpC9c1+FGSgHl15QJxydFwXaAy0UwR8WreOERy8MYR8Lsmm6k4CgomvQ4YO2iB/rTmbe946xNAlBUHtHavljZJxtcgsFpW5yRRVfpYXYHcBAMuJ/CScC/gE1RPqOxRUd53fRG50mEalwaEpuFF2/6Lzx92nuBfIzZZt87a0e3hwefzq/GL5HwfWG9maLeRHFvJF4vfcmw1pSecxeSR3jWENGa8qbJfflBIF8Q2dBWkDkp/7GySkHFqaHJP1A/b2IAPZUyWx8DO+vxYJW/AmsrkdVN5ob3dLcBMDWb7fBXAoNbarzRA1eLbZBxmKvc+gw+p58vrN+cXlwdnlsfkP8NyAHSAP96a9eCLbhi/vHKTuLfCL/0AcY9RbWv5wp+x87A5oOvI0mqj5AqqhLFnqRyBnwt1DkjPtH/9mt8lU4borWEB6fHN88cPJqTs6dqfHh5fnF03ajNxEPbvWMCPsuR9B3xa8XFp9TEkWqZcf0L3VCbxLtmgc7Sq5yZ+yiMFe61UtJUqj1BHsSTa0jGxLUF3Ydeuf7Fx53WRY+ALcj8T4yYMua+WxJilap9N18HLFthUW4iA7BN9iYfomAXBkDvtTo2mtgjwr7E1dYkMGWGZQurJmhNzSxFrndbId8AYMJfjlBx74avmRfidXrG1xvcNzfOHs5EhZrMlpT9yvf08yY0P2/TvrPK2vAxhi61yVBxQl9+euQs8ykwT/SEcW7WfCM6TAaEARHOFAt/Ay6g0WuQGW8gnoPjAvIWmetklTiVhZzHKwbU3OsZ64pLhOi9xrIqyJdLzjvqWdwFBwhBp/ajLEQHOHK2VvUd5RVxw2hNq5U6qQs3fpsormkwQrSH4zp7tzjVV2LeBSsmbogNWpCFrEesV61GhbKd5M3438T7ASNQqXrYRviL4/qd52ubmxqSwjIPhVV5+Ut717+6OL13MzJEmVVLRulE6ap+3ZexTaua3lZCjPujTnP5wcnhycHr9tOY6AAWAjSENtPAz0hV5bIE9V+XxFafsNOAzcNI2svVBn2tQpLGHM0cS7uX/PA0XogowaWlfAnjsFFMIAWG+Qr5t83Deq4HbT/U4KiAVLDWZjhU/TJhakMFAuVXPodzATg66WNBxSdZSq/oMEyJcbclDIG08Yu7q0u+rkSSQWcBv2RDyxFkFKkAlkIpTCAu5otvw0M17lJ19MacgP3tcwB4lPiX1RjHIS4Z5XRcLa4edDmLuPY7jIAK3sVg5TqecOxFOCF8egu1R1g/XCSvr/DUxdr3B3YUyeNiqraURI8yL7lp9KypGFzTSPa/UATa8gB5KV5bABgNcGOLsAaOo0m+4i0nClmDF0JFpw5fFjtEHWxDtEbAg3gjblmmpvsGF457e//HUtJXedvzJTILea1sRwszDlwNhdu6NerJ+gz8ShWplAaJoXyOpBDu/6OPq+lGoXjNrrwejv1BhTz1bxA/GxatPVNVi/KKLQtmooU4RMV3EoaNhbqG5EhQViV5H1EEB8tTZYJ1YJkx0M8AlWfbaAwhlW8ZZmSC0EzK6tpoo9yyd8EctWeaA8Ox72SQNYfvv3/3Kzptjp5zXJ7Zack/5A8lvxMjhiOH+jyjxtLFfW5g136jYto5bLn8fKF3Ryer9cMYL+XZzWBHrU8ZJRIJPWq1OLUcgkm4TujuUH5TI4gGIGgHoP6hbWwl/Kp8Ry5acBTQyr+wBOb6ZtK5El4Pbt+en5gzmj71eX+VzIncJAeng9TA+fm0QEOlYIivTRNr3rUPmehk8Sq8m8hRlvyLLPpvmHKvc8uhsmUyYe/XjfxtdYr1Zi8zKa0IENwvMwYB8YLNiXONeEQaTV4Lk1hNP/jGXZ/kXK6SIh+RFl0pJREyIaSJ9XXswYjATUXSCCCWNSOcSckTmdDMQVsG+2rb7gf5lVwtTjafvuGAvVvlgMGtBV7h9kHWVMLT6GvGX4ZgM5BOar9POaDTBYG1MIceG5PXaFirp3yiitpwOrnbKpbPkL3Bs/3BmCMWRYIuNr0lCg/IfqXZWlQf6kPhShPFB6SegNITZmCKAORU3rmKIxpUch4Rf5hIYmVcMipdJbNcw1RtDN1MaF/Y9I7HxyA+NrrlK3PWM0Nz4U4S99nDV777+8KqP9O6+XH+AxRNWVibhg1HkNsR5WlXKbfEs1s+VD3eZ6w/6MqWdZ3hBpQ12zLvqAx9RS4mJEKgd+aBFprDQICBX5/sWXSTu3UzVJblHe+07HeEJVa2jGPcijtlAhmM1E0DJ+Z4wviEBDJ9xIvcRWx0jrGYMLVlKbRiWgwbpTbqGg6YMD7RkWGWjb58Gj+F7K6E9Wnlng4KtqaMGJwVtXYdaGCp+mAaZ5Y1hkLrJVpwe0d+a8OMO56Ld8kA3W4NHQ5r+QSOSKKeS8uikV7uw9/1SeUYr6r7DoSqFCcYTdOybWpQ0IY9KBQP5WNd7UwCFFpsbPcnSTNjRyxqcOxG0BXF/Wf7WVlJ/msDaIjNdgmDmNnZYHHdCLB8lIXWFtOWe2/GBJkocQmf6ugJ2l6m1hxU7lpBEkA/y42NbEspwYtYGUApeD3JrH0URcmTiKMpllDe9kGbOl1AwFZSV+CJ2z/LCwTCA+Jk6a+A3zwnSgzrO2zx0khLaF7d9QPh2EFfSyMgd6jHRqgPmHRFpdva7nebFxBXbdaOeNizImQVQxfSfrktQ02lIW9SCYqdbs+nJ9C0RvbTveZEzb+u0FjA9hKOdbvSN6WMZFRxns1w6HH5T0I83n6Ks4hADmgZvk41yZM8TWj2LFWzWtGF+FbiwPDw7OOAGLspsC8Kn6ye3C26jkxg8R75vcA8UG1lYVGBTS8ChhTrDrC0w02nCnaJFdiS19LoSFFNP6Gw4dXjbLaM64urLIF3KrgUdcWoz2hVCX078Wngz7FJFlTYwVcBE9GpwIb3Bf3RPXaQOGyF+nBDZa9nBMwAHG0WJAoNinx4MaF95qIfDhFgM2sGtEwJKixm1au06rSritvb46TgMqn8Vq4zB/0yyBTL7Rl6/xqCued4jt+gRy+5qQ45YJws4Kfaoz4SzPV5yCefT1gIjlTE3oOcI8IijTBg0CVU/czuPdwHxfnBw3ZGagCQ2jGb24z4x3+SHGeKsJ5z0E51O386Wtt0Zut6yPt36K4vbq4gBmrukmr6M7a1wCWxSMHIgSNQulpx83jpGWYeerZumzy5OjgyMJ2AzjRLzpXEjX1OFlDTHUHfigU2l7OcF/pmHN2HeteWynXQt1fDwFRLGDAptDCiT5ejcMj1df3Gwe1z5Gx0y7zHxHbb+YhtU7DT/aksODxKq+bsV0rRp9bbYZQayBcAVWxzOWA0douLkhAOqUJkdqPjJ8ilmroA1KWRvcWFO8xsCFmbMwGPpbTXUGsjwenn7ZgO/9z+Mr/Uv3wvt78fagoD2McAePr2HLbfd+D9pU6dd4r8VSDewZ7I2I5WwbxBXgFURRifa8g+VnlhtBGwxbtl5hfaAct2WW9RQ/dqjlgcfJZps1+L5n1waf9z3SFMchzDl6uFb213vdAwH/D2Wov8SXQwc93AJpghJvk4iK3l/i4g8X5/4KXw2F+HqLXG273nTOX9zbsHeNfei+rV21HSjJDTfwUHP6QO+31jwNHKEVNQjwOxqetvG4J1ACWv8juL+Dt/J+A6F9ITee+D3Rsnqhg5j3r3kv4FQLuIk3gUkt3rx/vS7sBihxJVYLSvurNJCzg4L33W+AYf/2Nw/4IvQJhzOh3Ie8xr80XblwfjgYBRNFXyJmqP+Jh3qjDTt1TcZDEbnxRr9V6H/62y27Wz8S0LLG5Yo2Lo03BuBsxxkbOM3tgAs4BUTbbYcLOaMtKkw0d1mrGdbUs9ynk2UkIrh2fMbhr+Nu6UAoMucWId82ge3QaQ1iaKYP/OD8sPDHJuBgTEchNiD2GbaHYfh6Sdq3irS/qkdjyCA18n8M+juyrH19Y/Ft9W4Al19y3lJDWuswt8Bjmz7btLsdke9wpIXHN+fxA2Biiw7iYHOhMIdfBGCpY2b95w/Wjxj0b54apEaScJxFLamdX6ZxVYFBh4z5OYKgw/I2HNeIX8cHRR3qXsH4soie6rZOSIvJX2MBNE/SSKcI1f2d2mVwbArd3tKEnCRIyiud8F6fiYTGik+03xN/qKmCwGY0JVS3HAncOD3x4E457UQrxRiU/dphWjuJGbgSyLUbO4JuX2cO0e5Tm9bRb7bIIV2OgSMKTXI4iNeNO9lh5bdvNAqTNDulVKsdNwxLm56LBYEm1sFxAo1Ds6GFaBYS/SOGHQIKaswIqIELrk5v3LtxWTCss0G9hOrH4HVtp+riofyCQ/uMA6x2HLuRxw61BlmM/ggjOYgotQGkDvJsiq46UsKM+ZTdqQ2yplt5BS4GyhWSIRNT0aggw2OsAyL5YAgmxVta8s2DMA/ul86HAIEdyXWczgRfHR02aRBZzOi27XJLJ1Bb3t3sqjMNVIjQr0HsFqh0lStDU6mN6viJ2VfTmdW2RRgzxxJdZH9XoZPAxuZqJIhj0Z0at9fM2AS3RYuwiA4PcoDIEvGwXx8cBXo4a8w5cxk2ZoelmzHInbtuqXlPg1t4+l/mQ93wszWMNQw6pasBtyhReUc48iCGLQisMR5BPonkF9iACbJVjtDHivgP5Es4pbyFghr1RnhlPaM4ec6vcdiSKaj+MMLwy7sKo2iepx5CZyJH7YkEKheH8ib250EzSAM7mmyZS0Iv/6ZjZTqor+j3gT0NRYmBCpa1Y0oxMxWMY70kF9YmlveRHk/1pyaczoH1jtzjx//0zfoRsX3+ROrF/wEAAP//AwBQSwMEFAAGAAgAAAAhAPuhojMiBwAAJDsAABAAAAB4bC9jYWxjQ2hhaW4ueG1sbNvRaltXEIXh+0LfQZz7Rp6R4yTFcqCFXu6r9gGEo8YGWzaWKe3bd1GapN3fuczvxeAsTwx/Zuv645+PD5s/ji/n+6fTfqk3F8vmeLp9+nR/+rxffvv1lx/eL5vz6+H06fDwdDrul7+O5+XjzfffXd8eHm5/vjvcnzaZcDrvl7vX1+cft9vz7d3x8XB+8/R8POUrvz+9PB5e88eXz9vz88vx8Ol8dzy+Pj5s++LiavuYAcvN9e3mZb+My4taNvf75XLZPOR7Wbb/fuGnb1/4gpLNd/pP9j+pGY3dhw9zSpRU/pL/nyVK6p2pGSV1ZWpGSb01NaOk0sT8fc0oqZ2pGSXVpmaU1JefwNdWRUnRvWjs3ts9KCm7ByVl96Ck7B6UlN2DkrJ7UFJ2D0rK7kFJ2T0oKbsHjd07uwclZfegpOwelJTdg5Kye1BSdg9Kyu5BSdk9KCm7ByVl96Cxu7J7UFJ2D0rK7kFJ2T0oKbsHJWX3oKTsHpSU3YOSsntQUnYPGru3dg9Kyu5BSdk9KCm7ByVl96Ck7B6UlN2DkrJ7UFJ2D0rK7kFjd2n3oKTsHpSU3YOSsntQUnYPSsruQUnZPSgpuwclZfegpOweNHY7uwclZfegpOwelJTdg5Kye1BSdg9Kyu5BSdk9KCm7ByVl96Cxa7sHJWX3oKTsHpSU3YOSsntQUnYPSsruQUnZPSgpuwclZfegsSu7ByVl96Ck7B6UlN2DkrJ7UFJ2D0rK7kFJ2T0oKbsHJWX3oLG7sHtQUnYPSsruQUnZPSgpuwclZfegpOwelJTdg5Kye1BSdg8ardeKkqJ7UVJ0L0qK7kVJ0b0oKboXJUX3oqToXpQU3YuSonvRaL1WlJTd67Wt14oyy+712tZrRZll93pt67WizLJ7vbb1WlFm2b1e23qtaLReK0rKvddrW68VZZZ7r9e2XivKLPder229VpRZ7r1e23qtaLReK0rKvddrW68VZZZ7r9e2XivKLPder229VpRZ7r1e23qtKLPce7229VrRaL1WlJR7r9e2XivKLPder229VpRZ7r1e23qtKLPce7229VrRaL1WlJR7r9e2XivKLPder229VpRZ7r1e23qtKLPce7229VpRZrn3em3rtaLReq0oKfder229VpRZ7r1e23qtKLPce7229VpRZrn3em3rtaLReq0oKfder229VpRZ7r1e23qtKLPce7229VpRZrn3em3rtaLMcu/12tZrRaP1WlFS7r1e23qtKLPce7229VpRZrn3em3rtaLMcu/12tZrRaP1WlFS7r1e23qtKLPce7229VpRZrn3em3rtaLMcu/12tZrRZnl3uu1pdeKRum1oqTYe1FSdC9Kir0XJUX3oqTYe1FSdC9Kir0XJUX3olF6rSgp9l6UlN17ry29VpRZdu+9tvRaUWbZvffa0mtFmWX33mtLrxWN0mtFSdm999rSa0WZ5d57ry29VpRZ7r332tJrRZnl3nuvLb1WlFnuvffa0mtFo/RaUVLuvffa0mtFmeXee68tvVaUWe6999rSa0WZ5d57ry29VjRKrxUl5d57ry29VpRZ7r332tJrRZnl3nuvLb1WlFnuvffa0mtFmeXee68tvVY0Sq8VJeXee68tvVaUWe6999rSa0WZ5d57ry29VpRZ7r332tJrRaP0WlFS7r332tJrRZnl3nuvLb1WlFnuvffa0mtFmeXee68tvVaUWe6999rSa0Wj9FpRUu6999rSa0WZ5d57ry29VpRZ7r332tJrRZnl3nuvLb1WNEqvFSXl3nuvLb1WlFnuvffa0mtFmeXee68tvVaUWe6999rSa0WZ5d57ry29VjRKrxUl5d57ry29VpRZ7r332tJrRZnl3nuvLb1WlFnuvffa0mtFQ62FDKUWMlRayFBoIUOdhQxlFjJUWchQZCFDjYUMJRYyVFhfHCuw3mXVV+1VefUmq7pqroqr91i1VWtVWr3Fqqwaq8LqHVZd9XWxsqqrqqpeYBVVPVVN9fqqpOqoKqqXVwVVP1VPvboqp7qpaupLYsXUe6taqpUqpd5aVVKNVCH1zqqOaqPKqDdWVVQTVUS9r6qhvhpWQnVQFdTLqgKqf6qfXlWVT91T9fSiqnjqnWqn11SlU+dUOX0hrHB6R1U3tU1l0xuqqqlpKpreT9VMLVPJ9HaqYmqYCubKe+CVjz1NH//JJ0n4QNBM8okHMjPJy3wyM8kLcjIzyUtnMjPJi1wyM8nLUTIzyQtHMjPJSzwyM8mLsTnjy9+VAyk9r5xH6XnlOErPK6dRel45jNLzylmUnteOovOOrZxE6XnlIErPK9o4N5//j59/FivOqLbQ84ow0vOKLtLziizS84oq0vOKKLLPa5o4/yxWJJGeWWdapmR2mYppmF8Y9MuvC9rll4W/K/jny3byj/cb2H79fOvN3wAAAP//AwBQSwMEFAAGAAgAAAAhAH9miAmJAQAA8AIAABEACAFkb2NQcm9wcy9jb3JlLnhtbCCiBAEooAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIxSy27DIBC8V+o/WNxtbKdKE+QQqY9c2kiVmqhVbxQ2Ca2NEZDX3xfjxEnUHnqDndlhdpZivKvKaAPGylqNUJakKALFayHVcoTms0k8QJF1TAlW1gpGaA8Wjen1VcE14bWBF1NrME6CjbySsoTrEVo5pwnGlq+gYjbxDOXBRW0q5vzVLLFm/JstAedp2scVOCaYY7gRjHWniA6SgneSem3KICA4hhIqUM7iLMnwievAVPbPhoCcMSvp9trPdLB7ri14C3bsnZUdcbvdJttesOH9Z/h9+vwaRo2larLigGghOHHSlUALfDr6k11/fgF3bbm7eIAbYK42tElL73dl6DsWGzkBlhupnd9U231R8PsomXVTv7qFBHG3p49izYyoo6dkmhT4N96s0MBGNqunaWB0V/9eSKt1BSLy85M2rSPy1rt/mE0QzdO8H6eDuJfNsgHJB+Tm9qPxftHf5NEWqoPBfyoOSS8n+fBM8SgQIi6ZWq79R6Kg4vlriKwrhYku/yj9AQAA//8DAFBLAwQUAAYACAAAACEAD5dPrTACAABwBgAAEAAIAWRvY1Byb3BzL2FwcC54bWwgogQBKKAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACcld9u2jAUxu8n7R2s3EPCX23IpJpoV5A6DZW0t8h1TsCbY0e2iWBvs2fYI/TFdkJWCCq01u6Oj09+PudL/IVebXNJSjBWaDUOOu0oIKC4ToVajYOH5GvrU0CsYyplUisYBzuwwVX88QOdG12AcQIsQYSy42DtXDEKQ8vXkDPbxm2FO5k2OXO4NKtQZ5ngcK35Jgflwm4UDUPYOlAppK3iAAxq4qh0/wtNNa/6s4/JrsCGY5pAXkjmIKbhMUy0YzIROcQRpg8L+qUopODMoSTxN8GNtjpz5GbLQdKwuUlxlAXwjRFuVzGaS7rgTMIEu4gzJi3Q8JigU2CVwnMmjI1p6UYlcKcNseIXatwPyBOzUPU+DkpmBFMOZ6jK6sU+loV1Jp7qH8ySFAh//i35RmoaYl29tw+bjzRj0Y/7+wIM3iysWfdMrbQlXCuidP5kcB7vczqD8wdVhHpw7OBUkkQ4CfZ7NmfGnVGo87kp0b7DWqC62ZlCaTbcifJEjkPDE8mswE+Rpaj54mbenOViEWmRe6H48x91tnymSvym8f2cP/IWFBgmlzNVX4hLrb3U3QmH9ZdoVSNaLW877/KOlX7Erjexu/Qj9ryJPU9i35vY9yQOvIkDT+LQmzj0Iy7AoNe+unV736hc7fTC3An10z4Uib6uTO+fAZ0m6WLNDKToWQeDOiToFL3HyAoyWePNh/Sl5vVGZZeP9Q8k7gzbUS9CJ2zkaHj8VcR/AQAA//8DAFBLAQItABQABgAIAAAAIQDLn3dlegEAAKgGAAATAAAAAAAAAAAAAAAAAAAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAi0AFAAGAAgAAAAhALVVMCP0AAAATAIAAAsAAAAAAAAAAAAAAAAAswMAAF9yZWxzLy5yZWxzUEsBAi0AFAAGAAgAAAAhAFWz+/rLBAAAFQ8AAA8AAAAAAAAAAAAAAAAA2AYAAHhsL3dvcmtib29rLnhtbFBLAQItABQABgAIAAAAIQBs+1lMGgEAAOYEAAAaAAAAAAAAAAAAAAAAANALAAB4bC9fcmVscy93b3JrYm9vay54bWwucmVsc1BLAQItABQABgAIAAAAIQCnepqgugQAAAETAAAYAAAAAAAAAAAAAAAAACoOAAB4bC93b3Jrc2hlZXRzL3NoZWV0MS54bWxQSwECLQAUAAYACAAAACEAf43PSQoFAAA1EwAAGAAAAAAAAAAAAAAAAAAaEwAAeGwvd29ya3NoZWV0cy9zaGVldDIueG1sUEsBAi0AFAAGAAgAAAAhAHlYfbWXDQAAwm4AABgAAAAAAAAAAAAAAAAAWhgAAHhsL3dvcmtzaGVldHMvc2hlZXQzLnhtbFBLAQItABQABgAIAAAAIQBWyrbnqF8AAM6VAwAYAAAAAAAAAAAAAAAAACcmAAB4bC93b3Jrc2hlZXRzL3NoZWV0NC54bWxQSwECLQAUAAYACAAAACEAtlGYhkIDAAAsDAAAEwAAAAAAAAAAAAAAAAAFhgAAeGwvdGhlbWUvdGhlbWUxLnhtbFBLAQItABQABgAIAAAAIQBLloqIEAcAADcyAAANAAAAAAAAAAAAAAAAAHiJAAB4bC9zdHlsZXMueG1sUEsBAi0AFAAGAAgAAAAhAFKKvGWkFAAAYTUAABQAAAAAAAAAAAAAAAAAs5AAAHhsL3NoYXJlZFN0cmluZ3MueG1sUEsBAi0AFAAGAAgAAAAhAPuhojMiBwAAJDsAABAAAAAAAAAAAAAAAAAAiaUAAHhsL2NhbGNDaGFpbi54bWxQSwECLQAUAAYACAAAACEAf2aICYkBAADwAgAAEQAAAAAAAAAAAAAAAADZrAAAZG9jUHJvcHMvY29yZS54bWxQSwECLQAUAAYACAAAACEAD5dPrTACAABwBgAAEAAAAAAAAAAAAAAAAACZrwAAZG9jUHJvcHMvYXBwLnhtbFBLBQYAAAAADgAOAJADAAD/sgAAAAA=";
+
+        // ============================================================
+        // Estado
+        // ============================================================
+        let records = [];              // { originalTitle, apiData, status, rowEl }
+        let isProcessing = false;
+        let abortController = null;
+        const titleCache = new Map();  // título normalizado -> resultado de búsqueda
+
+        // ============================================================
+        // Elementos del DOM
+        // ============================================================
+        const form = document.getElementById('titleForm');
+        const titleInput = document.getElementById('titleInput');
+        const countBadge = document.getElementById('countBadge');
+        const processBtn = document.getElementById('processBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const retryBtn = document.getElementById('retryBtn');
+        const retryBtnLabel = document.getElementById('retryBtnLabel');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const statusText = document.getElementById('statusText');
+
+        const isbnInput = document.getElementById('isbnInput');
+        const isbnCountBadge = document.getElementById('isbnCountBadge');
+        const processIsbnBtn = document.getElementById('processIsbnBtn');
+
+        const recordsTable = document.getElementById('recordsTable');
+        const emptyState = document.getElementById('emptyState');
+        const clearBtn = document.getElementById('clearBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const exportInventarioBtn = document.getElementById('exportInventarioBtn');
+
+        const filterBar = document.getElementById('filterBar');
+        const filterInput = document.getElementById('filterInput');
+        const filterStatus = document.getElementById('filterStatus');
+        const filterCount = document.getElementById('filterCount');
+
+        const statTotal = document.getElementById('stat-total');
+        const statFound = document.getElementById('stat-found');
+        const statReview = document.getElementById('stat-review');
+        const statNotFound = document.getElementById('stat-notfound');
+        const toastContainer = document.getElementById('toastContainer');
+
+        // ============================================================
+        // Utilidades de texto y validación de similitud
+        // ============================================================
+        function normalizeText(str) {
+            return (str || '')
+                .toString()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function levenshtein(a, b) {
+            if (a === b) return 0;
+            const al = a.length, bl = b.length;
+            if (al === 0) return bl;
+            if (bl === 0) return al;
+            let prev = new Array(bl + 1);
+            for (let j = 0; j <= bl; j++) prev[j] = j;
+            for (let i = 1; i <= al; i++) {
+                const curr = new Array(bl + 1);
+                curr[0] = i;
+                for (let j = 1; j <= bl; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+                }
+                prev = curr;
+            }
+            return prev[bl];
+        }
+
+        function similarityRatio(a, b) {
+            const na = normalizeText(a), nb = normalizeText(b);
+            const maxLen = Math.max(na.length, nb.length);
+            if (maxLen === 0) return 1;
+            return Math.max(0, 1 - levenshtein(na, nb) / maxLen);
+        }
+
+        function getBestIsbn(isbnArray) {
+            if (!isbnArray || isbnArray.length === 0) return null;
+            const isbn13 = isbnArray.find(i => i.length === 13 && i.startsWith('978'));
+            if (isbn13) return isbn13;
+            const isbn10 = isbnArray.find(i => i.length === 10);
+            if (isbn10) return isbn10;
+            return isbnArray[0];
+        }
+
+        function formatISBN(isbn) {
+            if (!isbn) return 'N/D';
+            if (isbn.length === 13) {
+                return `${isbn.substring(0, 3)}-${isbn.substring(3, 4)}-${isbn.substring(4, 8)}-${isbn.substring(8, 12)}-${isbn.substring(12, 13)}`;
+            }
+            return isbn;
+        }
+
+        // ============================================================
+        // Capa de red: timeout, combinación de señales y reintentos
+        // ============================================================
+        function makeAbortError() {
+            const e = new Error('Aborted');
+            e.name = 'AbortError';
+            return e;
+        }
+
+        function sleep(ms, signal) {
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => { cleanup(); resolve(); }, ms);
+                function onAbort() { cleanup(); reject(makeAbortError()); }
+                function cleanup() { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
+                if (signal) {
+                    if (signal.aborted) { cleanup(); reject(makeAbortError()); return; }
+                    signal.addEventListener('abort', onAbort, { once: true });
+                }
+            });
+        }
+
+        function combineSignals(a, b) {
+            const controller = new AbortController();
+            if (a.aborted || b.aborted) { controller.abort(); return controller.signal; }
+            const onAbort = () => controller.abort();
+            a.addEventListener('abort', onAbort, { once: true });
+            b.addEventListener('abort', onAbort, { once: true });
+            return controller.signal;
+        }
+
+        async function fetchJson(url, outerSignal, timeoutMs = REQUEST_TIMEOUT_MS) {
+            const timeoutController = new AbortController();
+            const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+            const signal = combineSignals(outerSignal, timeoutController.signal);
+            try {
+                const res = await fetch(url, { signal });
+                if (!res.ok) {
+                    const err = new Error(`HTTP ${res.status}`);
+                    err.status = res.status;
+                    throw err;
+                }
+                return await res.json();
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    if (outerSignal.aborted) throw e; // abort real del usuario
+                    const timeoutErr = new Error('Tiempo de espera agotado');
+                    timeoutErr.status = 408;
+                    throw timeoutErr;
+                }
+                throw e;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        async function withRetries(fn, signal, retries = MAX_RETRIES) {
+            let attempt = 0;
+            while (true) {
+                try {
+                    return await fn();
+                } catch (err) {
+                    if (err.name === 'AbortError') throw err;
+                    attempt++;
+                    if (attempt > retries) throw err;
+                    const base = err.status === 429 ? 1800 : 700;
+                    await sleep(base * attempt, signal);
+                }
+            }
+        }
+
+        // ============================================================
+        // Fuentes de datos
+        // ============================================================
+        async function fetchOpenLibrary(title, signal) {
+            const url = `${OL_SEARCH_URL}?title=${encodeURIComponent(title)}&fields=${OL_FIELDS}&limit=1`;
+            const data = await fetchJson(url, signal);
+            if (!data.docs || data.docs.length === 0) return null;
+            const book = data.docs[0];
+            return {
+                source: 'OpenLibrary',
+                title: book.title || 'Título sin especificar',
+                authors: book.author_name ? book.author_name.join(', ') : null,
+                publishYear: book.first_publish_year || null,
+                publisher: Array.isArray(book.publisher) && book.publisher.length ? book.publisher[0] : null,
+                isbn: getBestIsbn(book.isbn),
+                coverUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
+            };
+        }
+
+        async function fetchGoogleBooks(title, signal) {
+            const url = `${GB_SEARCH_URL}?q=${encodeURIComponent('intitle:' + title)}&maxResults=1&printType=books`;
+            const data = await fetchJson(url, signal);
+            if (!data.items || data.items.length === 0) return null;
+            const info = data.items[0].volumeInfo || {};
+            const ids = info.industryIdentifiers || [];
+            const isbn13 = ids.find(i => i.type === 'ISBN_13');
+            const isbn10 = ids.find(i => i.type === 'ISBN_10');
+            const isbn = (isbn13 || isbn10 || {}).identifier || null;
+            let coverUrl = info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail) : null;
+            if (coverUrl) coverUrl = coverUrl.replace('http://', 'https://');
+            return {
+                source: 'Google Books',
+                title: info.title || 'Título sin especificar',
+                authors: info.authors ? info.authors.join(', ') : null,
+                publishYear: info.publishedDate ? info.publishedDate.slice(0, 4) : null,
+                publisher: info.publisher || null,
+                isbn,
+                coverUrl
+            };
+        }
+
+        async function fetchInternetArchive(title, signal) {
+            // Busca solo en materiales de texto (libros), evitando audio/video/software
+            const q = `title:(${title}) AND mediatype:(texts)`;
+            const params = new URLSearchParams({ q, rows: '1', page: '1', output: 'json' });
+            IA_FIELDS.forEach(f => params.append('fl[]', f));
+            const url = `${IA_SEARCH_URL}?${params.toString()}`;
+            const data = await fetchJson(url, signal);
+            const docs = data && data.response && data.response.docs;
+            if (!docs || docs.length === 0) return null;
+            const doc = docs[0];
+
+            const creator = Array.isArray(doc.creator) ? doc.creator.join(', ') : doc.creator;
+            const publisher = Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher;
+            const isbn = Array.isArray(doc.isbn) ? getBestIsbn(doc.isbn) : (doc.isbn || null);
+
+            return {
+                source: 'Internet Archive',
+                title: doc.title || 'Título sin especificar',
+                authors: creator || null,
+                publishYear: doc.year || null,
+                publisher: publisher || null,
+                isbn,
+                coverUrl: doc.identifier ? `https://archive.org/services/img/${doc.identifier}` : null
+            };
+        }
+
+        // Busca en OpenLibrary; si no hay resultado, recurre a Google Books y, como último
+        // recurso, al catálogo del Internet Archive. Valida la coincidencia por similitud de
+        // texto contra el título buscado.
+        async function combinedLookup(title, signal) {
+            const norm = normalizeText(title);
+            const cacheKey = norm || title;
+            if (titleCache.has(cacheKey)) return titleCache.get(cacheKey);
+
+            let candidate = null;
+            let olFailed = false, gbFailed = false, iaFailed = false;
+
+            try {
+                candidate = await withRetries(() => fetchOpenLibrary(title, signal), signal);
+            } catch (e) {
+                if (e.name === 'AbortError') throw e;
+                olFailed = true;
+            }
+
+            if (!candidate) {
+                try {
+                    candidate = await withRetries(() => fetchGoogleBooks(title, signal), signal);
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e;
+                    gbFailed = true;
+                }
+            }
+
+            if (!candidate) {
+                try {
+                    candidate = await withRetries(() => fetchInternetArchive(title, signal), signal);
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e;
+                    iaFailed = true;
+                }
+            }
+
+            let result;
+            if (candidate) {
+                const sim = similarityRatio(title, candidate.title);
+                if (sim < MIN_ACCEPTABLE_SIMILARITY) {
+                    result = { found: false };
+                } else {
+                    result = Object.assign({}, candidate, {
+                        found: true,
+                        similarity: sim,
+                        confidence: sim >= STRONG_SIMILARITY ? 'valid' : 'review'
+                    });
+                }
+            } else {
+                result = { found: false, networkError: olFailed && gbFailed && iaFailed };
+            }
+
+            titleCache.set(cacheKey, result);
+            return result;
+        }
+
+        // ============================================================
+        // AUDITORÍA — registro de correcciones, huecos y duplicados
+        // ============================================================
+        // Cada corrección automática, duplicado evitado o dato que no pudo verificarse
+        // en ninguna fuente queda documentado aquí. Nunca se inventa un dato: si no existe
+        // en ninguna de las 3 fuentes, se deja en blanco y se registra como pendiente.
+        const auditLog = [];
+        const AUDIT_STYLES = {
+            completado: { icon: '✓', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+            fusion: { icon: '⇄', color: 'text-sky-700 bg-sky-50 border-sky-200' },
+            duplicado: { icon: '⧉', color: 'text-amber-700 bg-amber-50 border-amber-200' },
+            descartado: { icon: '⊘', color: 'text-slate-600 bg-slate-100 border-slate-200' },
+            pendiente: { icon: '⚠', color: 'text-rose-700 bg-rose-50 border-rose-200' },
+            resumen: { icon: 'Σ', color: 'text-indigo-700 bg-indigo-50 border-indigo-200' }
+        };
+
+        function logAudit(type, message) {
+            auditLog.push({ type, message, ts: new Date() });
+            const list = document.getElementById('auditLogList');
+            const panel = document.getElementById('auditLogPanel');
+            const countEl = document.getElementById('auditLogCount');
+            if (!list || !panel || !countEl) return;
+            const s = AUDIT_STYLES[type] || AUDIT_STYLES.pendiente;
+            const div = document.createElement('div');
+            div.className = `text-xs border rounded px-2 py-1.5 ${s.color} flex items-start gap-2`;
+            div.innerHTML = `<span class="font-bold shrink-0">${s.icon}</span><span class="flex-1">${escapeHtml(message)}</span>`;
+            list.prepend(div);
+            countEl.textContent = auditLog.length;
+            panel.classList.remove('hidden');
+        }
+
+        // ============================================================
+        // DEDUPLICACIÓN — índices para nunca crear registros repetidos
+        // ============================================================
+        const isbnIndex = new Map();  // ISBN normalizado -> registro
+        const titleIndex = new Map(); // título normalizado -> registro (título buscado Y título encontrado)
+
+        function indexRecord(record) {
+            const normOriginal = normalizeText(record.originalTitle);
+            if (normOriginal) titleIndex.set(normOriginal, record);
+            if (record.apiData && record.apiData.found) {
+                const normFound = normalizeText(record.apiData.title);
+                if (normFound) titleIndex.set(normFound, record);
+                if (record.apiData.isbn) {
+                    const normIsbn = normalizeIsbn(record.apiData.isbn);
+                    if (normIsbn) isbnIndex.set(normIsbn, record);
+                }
+            }
+        }
+
+        // ============================================================
+        // UTILIDADES ISBN — normalización y validación de dígito verificador
+        // ============================================================
+        function normalizeIsbn(raw) {
+            return (raw || '').toString().toUpperCase().replace(/[^0-9X]/g, '');
+        }
+
+        // Valida el dígito verificador real de ISBN-10 e ISBN-13 (no solo la longitud),
+        // para detectar ISBN mal transcritos antes de usarlos como llave de comparación.
+        function isValidIsbn(isbn) {
+            if (isbn.length === 10) {
+                let sum = 0;
+                for (let i = 0; i < 9; i++) {
+                    if (!/[0-9]/.test(isbn[i])) return false;
+                    sum += (10 - i) * Number(isbn[i]);
+                }
+                const last = isbn[9];
+                const checkVal = last === 'X' ? 10 : (/[0-9]/.test(last) ? Number(last) : NaN);
+                if (isNaN(checkVal)) return false;
+                sum += checkVal;
+                return sum % 11 === 0;
+            }
+            if (isbn.length === 13) {
+                if (!/^[0-9]{13}$/.test(isbn)) return false;
+                let sum = 0;
+                for (let i = 0; i < 13; i++) sum += Number(isbn[i]) * (i % 2 === 0 ? 1 : 3);
+                return sum % 10 === 0;
+            }
+            return false;
+        }
+
+        // ============================================================
+        // MOTOR 2 — Búsqueda directa por ISBN (identificador exacto: sin
+        // necesidad de validar por similitud de título, a diferencia del Motor 1)
+        // ============================================================
+        async function fetchOpenLibraryByISBN(isbn, signal) {
+            const url = `${OL_SEARCH_URL}?isbn=${encodeURIComponent(isbn)}&fields=${OL_FIELDS}&limit=1`;
+            const data = await fetchJson(url, signal);
+            if (!data.docs || data.docs.length === 0) return null;
+            const book = data.docs[0];
+            if (!book.title) return null;
+            return {
+                source: 'OpenLibrary',
+                title: book.title,
+                authors: book.author_name ? book.author_name.join(', ') : null,
+                publishYear: book.first_publish_year || null,
+                publisher: Array.isArray(book.publisher) && book.publisher.length ? book.publisher[0] : null,
+                isbn: getBestIsbn(book.isbn) || isbn,
+                coverUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
+            };
+        }
+
+        async function fetchGoogleBooksByISBN(isbn, signal) {
+            const url = `${GB_SEARCH_URL}?q=${encodeURIComponent('isbn:' + isbn)}&maxResults=1`;
+            const data = await fetchJson(url, signal);
+            if (!data.items || data.items.length === 0) return null;
+            const info = data.items[0].volumeInfo || {};
+            if (!info.title) return null;
+            const ids = info.industryIdentifiers || [];
+            const isbn13 = ids.find(i => i.type === 'ISBN_13');
+            const isbn10 = ids.find(i => i.type === 'ISBN_10');
+            const foundIsbn = (isbn13 || isbn10 || {}).identifier || isbn;
+            let coverUrl = info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail) : null;
+            if (coverUrl) coverUrl = coverUrl.replace('http://', 'https://');
+            return {
+                source: 'Google Books',
+                title: info.title,
+                authors: info.authors ? info.authors.join(', ') : null,
+                publishYear: info.publishedDate ? info.publishedDate.slice(0, 4) : null,
+                publisher: info.publisher || null,
+                isbn: foundIsbn,
+                coverUrl
+            };
+        }
+
+        async function fetchInternetArchiveByISBN(isbn, signal) {
+            const q = `isbn:(${isbn})`;
+            const params = new URLSearchParams({ q, rows: '1', page: '1', output: 'json' });
+            IA_FIELDS.forEach(f => params.append('fl[]', f));
+            const url = `${IA_SEARCH_URL}?${params.toString()}`;
+            const data = await fetchJson(url, signal);
+            const docs = data && data.response && data.response.docs;
+            if (!docs || docs.length === 0) return null;
+            const doc = docs[0];
+            if (!doc.title) return null;
+            const creator = Array.isArray(doc.creator) ? doc.creator.join(', ') : doc.creator;
+            const publisher = Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher;
+            const foundIsbn = Array.isArray(doc.isbn) ? getBestIsbn(doc.isbn) : (doc.isbn || isbn);
+            return {
+                source: 'Internet Archive',
+                title: doc.title,
+                authors: creator || null,
+                publishYear: doc.year || null,
+                publisher: publisher || null,
+                isbn: foundIsbn,
+                coverUrl: doc.identifier ? `https://archive.org/services/img/${doc.identifier}` : null
+            };
+        }
+
+        // Cascada de búsqueda por ISBN. El ISBN es un identificador exacto, así que si una
+        // fuente lo resuelve se considera 100% confiable (a diferencia de la búsqueda por
+        // título, aquí no hace falta validar por similitud).
+        async function lookupByISBN(isbn, signal) {
+            const fetchers = [
+                () => fetchOpenLibraryByISBN(isbn, signal),
+                () => fetchGoogleBooksByISBN(isbn, signal),
+                () => fetchInternetArchiveByISBN(isbn, signal)
+            ];
+            for (const fetcher of fetchers) {
+                try {
+                    const result = await withRetries(fetcher, signal);
+                    if (result) return result;
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e;
+                    // continúa con la siguiente fuente
+                }
+            }
+            return null;
+        }
+
+        // ============================================================
+        // RELLENO DE HUECOS (Motor 1) — si el título ya se validó pero le faltan
+        // campos, se consultan las OTRAS fuentes (las que no ganaron la búsqueda
+        // inicial) exclusivamente para completar esos campos, nunca para
+        // sobrescribir un dato que ya existe.
+        // ============================================================
+        const TITLE_FETCHERS = {
+            'OpenLibrary': fetchOpenLibrary,
+            'Google Books': fetchGoogleBooks,
+            'Internet Archive': fetchInternetArchive
+        };
+        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año' };
+
+        async function fillMissingFields(record, signal) {
+            const d = record.apiData;
+            if (!d || !d.found) return;
+            let missing = ['authors', 'publisher', 'isbn', 'publishYear'].filter(f => !d[f]);
+            if (missing.length === 0) return;
+
+            const otherSources = Object.keys(TITLE_FETCHERS).filter(s => s !== d.source);
+            for (const sourceName of otherSources) {
+                if (missing.length === 0) break;
+                let candidate = null;
+                try {
+                    candidate = await withRetries(() => TITLE_FETCHERS[sourceName](record.originalTitle, signal), signal);
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e;
+                    continue;
+                }
+                if (!candidate) continue;
+                // Solo se confía en el dato de relleno si el título que devolvió esa fuente
+                // sigue pareciéndose al título original buscado (evita mezclar datos de otro libro).
+                const sim = similarityRatio(record.originalTitle, candidate.title);
+                if (sim < MIN_ACCEPTABLE_SIMILARITY) continue;
+
+                missing = missing.filter(field => {
+                    if (candidate[field]) {
+                        d[field] = candidate[field];
+                        logAudit('completado', `"${d.title}": campo "${FIELD_LABELS[field]}" completado automáticamente usando ${sourceName} (faltaba tras la búsqueda inicial en ${d.source}).`);
+                        return false;
+                    }
+                    return true;
+                });
+            }
+        }
+
+        // ============================================================
+        // MOTOR 2 — enriquecimiento de un registro existente a partir de un ISBN
+        // ============================================================
+        async function enrichRecordFromIsbn(targetRecord, normIsbn, signal, precomputedCandidate) {
+            const candidate = precomputedCandidate || await lookupByISBN(normIsbn, signal);
+            if (!candidate) return [];
+            const d = targetRecord.apiData;
+            const filled = [];
+            ['authors', 'publisher', 'publishYear'].forEach(field => {
+                if (!d[field] && candidate[field]) {
+                    d[field] = candidate[field];
+                    filled.push(FIELD_LABELS[field]);
+                }
+            });
+            if (!d.isbn) {
+                d.isbn = normIsbn;
+                filled.push('ISBN');
+            }
+            indexRecord(targetRecord);
+            return filled;
+        }
+
+        // Inserta un registro NUEVO (fila + índices + render). Genérico: lo usan tanto el
+        // Motor 2 (ISBN suelto) como el Motor 3 (importación de archivos) para no duplicar
+        // la lógica de inserción en el DOM.
+        function insertNewRecord(record) {
+            const tr = createPendingRow(record);
+            record.rowEl = tr;
+            if (recordsTable.firstElementChild && recordsTable.firstElementChild.id !== 'emptyState') {
+                recordsTable.insertBefore(tr, recordsTable.firstElementChild);
+            } else {
+                recordsTable.innerHTML = '';
+                recordsTable.appendChild(tr);
+            }
+            records.unshift(record);
+            emptyState.style.display = 'none';
+            indexRecord(record);
+            renderRow(record);
+            return record;
+        }
+
+        function addIsbnAsNewRecord(normIsbn, apiData) {
+            return insertNewRecord({ originalTitle: apiData.found ? apiData.title : `ISBN sin resolver: ${normIsbn}`, apiData, status: apiData.found ? apiData.confidence : 'notfound', rowEl: null, searchIndex: '', origin: 'isbn' });
+        }
+
+        // Fusiona campos sueltos {authors, publisher, publishYear, isbn} en un registro
+        // existente, SOLO donde ese registro tenga el campo vacío (nunca sobrescribe un dato
+        // ya presente). Reutilizable desde cualquier motor. Devuelve las etiquetas rellenadas.
+        function mergeFieldsIntoRecord(targetRecord, sourceFields) {
+            const d = targetRecord.apiData;
+            const filled = [];
+            ['authors', 'publisher', 'publishYear', 'isbn'].forEach(field => {
+                if (!d[field] && sourceFields[field]) {
+                    d[field] = sourceFields[field];
+                    filled.push(FIELD_LABELS[field]);
+                }
+            });
+            if (filled.length > 0) {
+                indexRecord(targetRecord);
+                renderRow(targetRecord);
+            }
+            return filled;
+        }
+
+        // Procesa UN ISBN del listado del Motor 2: compara contra lo ya existente
+        // (3.1), enriquece si coincide (3.2), o lo agrega como registro nuevo sin
+        // generar duplicados (3.3).
+        async function handleOneIsbnItem(rawIsbn, signal) {
+            const normIsbn = normalizeIsbn(rawIsbn);
+            if (!normIsbn || !isValidIsbn(normIsbn)) {
+                logAudit('pendiente', `ISBN "${rawIsbn}" tiene un formato inválido (no pasa la validación del dígito verificador) — se omitió. Requiere revisión manual.`);
+                return;
+            }
+
+            // 3.1 — ¿ese ISBN exacto ya existe en el inventario?
+            const existingByIsbn = isbnIndex.get(normIsbn);
+            if (existingByIsbn) {
+                const filled = await enrichRecordFromIsbn(existingByIsbn, normIsbn, signal);
+                if (filled.length > 0) {
+                    logAudit('completado', `ISBN ${normIsbn} coincide con "${existingByIsbn.apiData.title}": completó ${filled.join(', ')} (Motor 2).`);
+                    renderRow(existingByIsbn);
+                } else {
+                    logAudit('descartado', `ISBN ${normIsbn} ya existe en el inventario ("${existingByIsbn.apiData.title}") y no tenía campos pendientes — registro descartado (evita duplicado).`);
+                }
+                return;
+            }
+
+            // No existe ese ISBN exacto: se busca su información para poder comparar por título
+            let candidate = null;
+            try {
+                candidate = await lookupByISBN(normIsbn, signal);
+            } catch (e) {
+                if (e.name === 'AbortError') throw e;
+            }
+
+            if (!candidate) {
+                addIsbnAsNewRecord(normIsbn, { found: false, networkError: true });
+                logAudit('pendiente', `ISBN ${normIsbn} no se encontró en OpenLibrary, Google Books ni Internet Archive. Se agregó como registro pendiente de revisión manual (no se inventaron datos).`);
+                return;
+            }
+
+            // 3.3 — unificar por título aunque el nombre varíe, si aún no había ISBN registrado
+            let bestMatch = null, bestSim = 0;
+            titleIndex.forEach(rec => {
+                if (rec.apiData && rec.apiData.found && !rec.apiData.isbn) {
+                    const sim = similarityRatio(candidate.title, rec.apiData.title);
+                    if (sim > bestSim) { bestSim = sim; bestMatch = rec; }
+                }
+            });
+
+            if (bestMatch && bestSim >= STRONG_SIMILARITY) {
+                const filled = await enrichRecordFromIsbn(bestMatch, normIsbn, signal, candidate);
+                logAudit('fusion', `ISBN ${normIsbn} ("${candidate.title}") se unificó con el registro existente "${bestMatch.apiData.title}" (${Math.round(bestSim * 100)}% de coincidencia de título) — se evitó crear un duplicado. Completó: ${filled.length ? filled.join(', ') : 'nada, ya estaba completo'}.`);
+                renderRow(bestMatch);
+                return;
+            }
+
+            // No hay coincidencia con ningún registro existente: es un libro nuevo
+            addIsbnAsNewRecord(normIsbn, Object.assign({}, candidate, { found: true, similarity: 1, confidence: 'valid' }));
+            logAudit('completado', `ISBN ${normIsbn} ("${candidate.title}") agregado como nuevo registro (Motor 2, fuente ${candidate.source}).`);
+        }
+
+        function logFinalAuditSummary(engineLabel) {
+            const completados = auditLog.filter(e => e.type === 'completado').length;
+            const evitados = auditLog.filter(e => e.type === 'duplicado' || e.type === 'descartado').length;
+            const fusiones = auditLog.filter(e => e.type === 'fusion').length;
+            const pendientesCampos = records.filter(r => r.apiData && r.apiData.found &&
+                (!r.apiData.authors || !r.apiData.publisher || !r.apiData.isbn || !r.apiData.publishYear)).length;
+            logAudit('resumen', `Resumen — ${engineLabel}: ${completados} campo(s) completados automáticamente · ${fusiones} registro(s) unificados · ${evitados} duplicado(s) evitados · ${pendientesCampos} registro(s) con algún campo que ninguna de las 3 fuentes pudo verificar (revisión manual genuina, no fue omisión del sistema).`);
+        }
+
+
+        // ============================================================
+        // UI: toasts
+        // ============================================================
+        function showToast(message, type = 'error') {
+            const toast = document.createElement('div');
+            let bgColor = 'bg-slate-800';
+            let icon = '';
+
+            if (type === 'error') {
+                bgColor = 'bg-red-500';
+                icon = `<svg class="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+            } else if (type === 'success') {
+                bgColor = 'bg-emerald-500';
+                icon = `<svg class="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
+            } else if (type === 'info') {
+                bgColor = 'bg-blue-500';
+                icon = `<svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            }
+
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 toast-enter max-w-sm z-50 border border-white/10`;
+            toast.innerHTML = `${icon}<span class="text-sm font-medium tracking-wide">${message}</span>`;
+
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                toast.style.transition = 'all 0.3s ease-in';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // ============================================================
+        // UI: estadísticas y filtros
+        // ============================================================
+        function updateStats() {
+            const total = records.length;
+            const valid = records.filter(r => r.status === 'valid').length;
+            const review = records.filter(r => r.status === 'review').length;
+            const notFound = records.filter(r => r.status === 'notfound').length;
+
+            statTotal.textContent = total;
+            statFound.textContent = valid;
+            statReview.textContent = review;
+            statNotFound.textContent = notFound;
+
+            const hasFinishedItems = records.some(r => r.status !== 'pending');
+            if (total > 0 && hasFinishedItems) {
+                clearBtn.classList.remove('hidden');
+                exportBtn.classList.remove('hidden');
+                exportInventarioBtn.classList.remove('hidden');
+                exportInventarioBtn.classList.add('flex');
+                filterBar.classList.remove('hidden');
+            } else if (total === 0) {
+                clearBtn.classList.add('hidden');
+                exportBtn.classList.add('hidden');
+                exportInventarioBtn.classList.add('hidden');
+                exportInventarioBtn.classList.remove('flex');
+                filterBar.classList.add('hidden');
+            }
+
+            const pendingRetry = records.filter(r => r.status === 'notfound' && r.origin === 'titulo').length;
+            if (!isProcessing && pendingRetry > 0) {
+                retryBtn.classList.remove('hidden');
+                retryBtnLabel.textContent = `Reintentar no encontrados (${pendingRetry})`;
+            } else {
+                retryBtn.classList.add('hidden');
+            }
+        }
+
+        function applyFilters() {
+            const query = normalizeText(filterInput.value);
+            const status = filterStatus.value;
+            let visible = 0;
+            records.forEach(rec => {
+                if (!rec.rowEl) return;
+                const matchesStatus = status === 'all' || rec.status === status;
+                const matchesQuery = !query || (rec.searchIndex && rec.searchIndex.includes(query));
+                const show = matchesStatus && matchesQuery;
+                rec.rowEl.dataset.hidden = show ? 'false' : 'true';
+                if (show) visible++;
+            });
+            filterCount.textContent = (query || status !== 'all') ? `${visible} de ${records.length}` : '';
+        }
+
+        let filterDebounce = null;
+        filterInput.addEventListener('input', () => {
+            clearTimeout(filterDebounce);
+            filterDebounce = setTimeout(applyFilters, 150);
+        });
+        filterStatus.addEventListener('change', applyFilters);
+
+        // ============================================================
+        // UI: filas de la tabla
+        // ============================================================
+        function createPendingRow(record) {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-100 last:border-0';
+            tr.innerHTML = `
+                <td class="p-4 align-top border-r border-slate-50">
+                    <div class="text-sm font-medium text-slate-700 whitespace-normal break-words">${escapeHtml(record.originalTitle)}</div>
+                </td>
+                <td class="p-4 align-top w-full" colspan="2">
+                    <div class="flex items-center gap-3 text-slate-400 skeleton">
+                        <div class="w-12 h-16 bg-slate-100 rounded"></div>
+                        <span class="text-sm">Buscando en OpenLibrary / Google Books / Internet Archive...</span>
+                    </div>
+                </td>
+                <td class="p-4 align-middle text-center">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span> En cola
+                    </span>
+                </td>
+            `;
+            return tr;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str == null ? '' : String(str);
+            return div.innerHTML;
+        }
+
+        function sourceBadge(source) {
+            if (source === 'OpenLibrary') {
+                return `<span class="text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">OpenLibrary</span>`;
+            }
+            if (source === 'Google Books') {
+                return `<span class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">Google Books</span>`;
+            }
+            if (source === 'Internet Archive') {
+                return `<span class="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded">Internet Archive</span>`;
+            }
+            return '';
+        }
+
+        function originBadge(origin) {
+            if (origin === 'isbn') {
+                return `<span class="text-[10px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">Motor 2 · ISBN</span>`;
+            }
+            if (origin === 'importacion') {
+                return `<span class="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">Motor 3 · Archivo</span>`;
+            }
+            return `<span class="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">Motor 1 · Título</span>`;
+        }
+
+        function renderRow(record) {
+            const tr = record.rowEl;
+            const apiData = record.apiData;
+            let statusUI = '', bookUI = '', isbnUI = '';
+
+            if (record.status === 'valid' || record.status === 'review') {
+                const isValid = record.status === 'valid';
+                const pct = Math.round(apiData.similarity * 100);
+
+                statusUI = isValid
+                    ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200" title="Similitud de título: ${pct}%">
+                           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Validado (${pct}%)
+                       </span>`
+                    : `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200" title="Coincidencia parcial: revisar manualmente">
+                           <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Revisar (${pct}%)
+                       </span>`;
+
+                const coverHtml = apiData.coverUrl
+                    ? `<img src="${apiData.coverUrl}" loading="lazy" class="w-12 h-16 object-cover rounded shadow border border-slate-200 cover-image" alt="Portada" onerror="this.outerHTML='<div class=\\'w-12 h-16 bg-slate-100 border border-slate-200 rounded flex items-center justify-center\\'><span class=\\'text-[8px] text-slate-400\\'>Sin Img</span></div>'">`
+                    : `<div class="w-12 h-16 bg-slate-100 border border-slate-200 rounded shadow-sm flex items-center justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg></div>`;
+
+                bookUI = `
+                    <div class="flex items-start gap-4 py-2">
+                        <div class="flex-shrink-0">${coverHtml}</div>
+                        <div class="flex flex-col overflow-hidden min-w-0">
+                            <span class="font-bold text-slate-800 text-sm mb-0.5 truncate" title="${escapeHtml(apiData.title)}">${escapeHtml(apiData.title)}</span>
+                            <span class="text-xs text-slate-600 mb-1 truncate" title="${escapeHtml(apiData.authors || 'No verificado')}">👤 ${apiData.authors ? escapeHtml(apiData.authors) : '<span class="text-rose-400 italic">no verificado</span>'}</span>
+                            <div class="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
+                                <span class="bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[120px]" title="${escapeHtml(apiData.publisher || 'No verificado')}">🏢 ${apiData.publisher ? escapeHtml(apiData.publisher) : '<span class="text-rose-400 italic">no verificado</span>'}</span>
+                                <span>📅 ${apiData.publishYear ? escapeHtml(apiData.publishYear) : '<span class="text-rose-400 italic">no verificado</span>'}</span>
+                                ${sourceBadge(apiData.source)}
+                                ${originBadge(record.origin)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                isbnUI = apiData.isbn
+                    ? `<div class="font-mono text-sm text-slate-700 bg-slate-50 border border-slate-200 py-1.5 px-2 rounded font-medium inline-block tracking-tight">${formatISBN(apiData.isbn)}</div>`
+                    : `<span class="text-xs text-slate-400 italic">No disponible</span>`;
+
+            } else {
+                const isNetworkError = apiData && apiData.networkError;
+                statusUI = isNetworkError
+                    ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200" title="Ambas fuentes fallaron al responder">
+                           <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Error de Red
+                       </span>`
+                    : `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200">
+                           <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> No Encontrado
+                       </span>`;
+                bookUI = `<span class="text-slate-400 text-sm italic">${isNetworkError ? 'No se pudo consultar ninguna de las 3 fuentes (OpenLibrary, Google Books, Internet Archive).' : 'Sin coincidencias fiables en OpenLibrary, Google Books ni Internet Archive.'}</span>`;
+                isbnUI = `<span class="text-slate-300">-</span>`;
+            }
+
+            tr.className = 'hover:bg-slate-50 transition-colors group border-b border-slate-100 last:border-0';
+            tr.innerHTML = `
+                <td class="p-4 align-top border-r border-slate-50">
+                    <div class="text-sm font-medium text-slate-700 whitespace-normal break-words">${escapeHtml(record.originalTitle)}</div>
+                </td>
+                <td class="p-4 align-top w-full">${bookUI}</td>
+                <td class="p-4 align-middle border-l border-slate-50">${isbnUI}</td>
+                <td class="p-4 align-middle text-center">${statusUI}</td>
+            `;
+
+            record.searchIndex = normalizeText(
+                record.originalTitle + ' ' + (apiData && apiData.title ? apiData.title : '') + ' ' + (apiData && apiData.authors ? apiData.authors : '')
+            );
+        }
+
+        // ============================================================
+        // Procesamiento por lotes con concurrencia controlada
+        // ============================================================
+        async function handleOneRecord(record, signal) {
+            record.origin = 'titulo';
+            try {
+                const apiData = await combinedLookup(record.originalTitle, signal);
+                record.apiData = apiData;
+                record.status = apiData.found ? apiData.confidence : 'notfound';
+                if (apiData.found) {
+                    // Auditoría + corrección automática: rellenar huecos con las otras fuentes
+                    await fillMissingFields(record, signal);
+                    const stillMissing = ['authors', 'publisher', 'isbn', 'publishYear'].filter(f => !record.apiData[f]);
+                    if (stillMissing.length > 0) {
+                        logAudit('pendiente', `"${record.apiData.title}": no fue posible verificar ${stillMissing.map(f => FIELD_LABELS[f]).join(', ')} en ninguna de las 3 fuentes. Se deja en blanco (no se inventó el dato) — requiere revisión manual.`);
+                    }
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    record.status = 'notfound';
+                    record.apiData = { found: false };
+                } else {
+                    record.status = 'notfound';
+                    record.apiData = { found: false, networkError: true };
+                }
+            }
+            indexRecord(record);
+            renderRow(record);
+        }
+
+        async function processBatch(batch, signal, taskFn) {
+            let nextIndex = 0;
+            let completed = 0;
+            const total = batch.length;
+
+            async function worker() {
+                while (true) {
+                    if (signal.aborted) return;
+                    const idx = nextIndex++;
+                    if (idx >= total) return;
+                    await taskFn(batch[idx], signal);
+
+                    completed++;
+                    const percent = Math.round((completed / total) * 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressText.textContent = `${completed} de ${total} (${percent}%)`;
+                    updateStats();
+
+                    if (signal.aborted) return;
+                    try { await sleep(WORKER_PACE_MS, signal); } catch (e) { return; }
+                }
+            }
+
+            const workerCount = Math.min(CONCURRENCY, total) || 1;
+            await Promise.all(Array.from({ length: workerCount }, worker));
+        }
+
+        function setProcessingUI(active, statusMessage) {
+            isProcessing = active;
+            processBtn.classList.toggle('hidden', active);
+            processBtn.disabled = active;
+            stopBtn.classList.toggle('hidden', !active);
+            stopBtn.disabled = !active;
+            titleInput.disabled = active;
+            titleInput.classList.toggle('opacity-50', active);
+            isbnInput.disabled = active;
+            isbnInput.classList.toggle('opacity-50', active);
+            processIsbnBtn.disabled = active;
+            processIsbnBtn.classList.toggle('opacity-50', active);
+            progressContainer.classList.toggle('hidden', !active);
+            if (active) {
+                retryBtn.classList.add('hidden');
+                stopBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>`;
+                statusText.textContent = statusMessage || 'Buscando en OpenLibrary, Google Books e Internet Archive...';
+                statusText.classList.add('animate-pulse');
+                statusText.classList.remove('text-slate-600');
+                statusText.classList.add('text-emerald-600');
+                progressBar.classList.add('progress-bar-stripes');
+                progressBar.style.width = '0%';
+            }
+        }
+
+        async function runBatch(titlesOrRecords, { isRetry = false } = {}) {
+            if (isProcessing) return;
+
+            let batch;
+            if (isRetry) {
+                batch = titlesOrRecords; // records ya existentes que se reprocesan in situ
+                batch.forEach(rec => {
+                    const norm = normalizeText(rec.originalTitle);
+                    titleCache.delete(norm || rec.originalTitle);
+                    rec.status = 'pending';
+                    const freshRow = createPendingRow(rec);
+                    rec.rowEl.className = freshRow.className;
+                    rec.rowEl.innerHTML = freshRow.innerHTML;
+                });
+            } else {
+                batch = titlesOrRecords.map(t => ({ originalTitle: t, apiData: null, status: 'pending', rowEl: null, searchIndex: '' }));
+                const fragment = document.createDocumentFragment();
+                batch.forEach(rec => {
+                    const tr = createPendingRow(rec);
+                    rec.rowEl = tr;
+                    fragment.appendChild(tr);
+                });
+                if (recordsTable.firstElementChild && recordsTable.firstElementChild.id !== 'emptyState') {
+                    recordsTable.insertBefore(fragment, recordsTable.firstElementChild);
+                } else {
+                    recordsTable.innerHTML = '';
+                    recordsTable.appendChild(fragment);
+                }
+                records = batch.concat(records);
+                emptyState.style.display = 'none';
+            }
+
+            setProcessingUI(true);
+            abortController = new AbortController();
+            const beforeUnloadHandler = (e) => { e.preventDefault(); e.returnValue = ''; };
+            window.addEventListener('beforeunload', beforeUnloadHandler);
+
+            try {
+                await processBatch(batch, abortController.signal, handleOneRecord);
+                if (abortController.signal.aborted) {
+                    showToast(`Proceso detenido por el usuario.`, 'info');
+                } else {
+                    showToast(`Proceso completado: ${batch.length} títulos analizados.`, 'success');
+                }
+            } catch (error) {
+                showToast('Ocurrió un error inesperado durante el procesamiento.', 'error');
+            } finally {
+                window.removeEventListener('beforeunload', beforeUnloadHandler);
+                setProcessingUI(false);
+                statusText.textContent = 'Proceso Finalizado';
+                statusText.classList.remove('animate-pulse', 'text-emerald-600');
+                statusText.classList.add('text-slate-600');
+                progressBar.classList.remove('progress-bar-stripes');
+                logFinalAuditSummary('Motor 1 (Títulos)');
+                updateStats();
+                applyFilters();
+                setTimeout(() => { progressContainer.classList.add('hidden'); }, 2500);
+            }
+        }
+
+        // ============================================================
+        // Eventos
+        // ============================================================
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (isProcessing) return;
+
+            const text = titleInput.value;
+            let rawTitles = text.split('\n').map(i => i.trim()).filter(Boolean);
+
+            if (rawTitles.length === 0) {
+                showToast('Por favor, ingresa al menos un título de libro.', 'error');
+                return;
+            }
+            if (rawTitles.length > MAX_TITLES) {
+                rawTitles = rawTitles.slice(0, MAX_TITLES);
+                showToast(`Lista truncada a ${MAX_TITLES} títulos (límite máximo permitido).`, 'info');
+            }
+
+            // Auditoría — deduplicar la lista pegada antes de gastar una sola solicitud
+            const seenInBatch = new Set();
+            const deduped = [];
+            rawTitles.forEach((t, idx) => {
+                const norm = normalizeText(t);
+                if (seenInBatch.has(norm)) {
+                    logAudit('duplicado', `Línea ${idx + 1} omitida: "${t}" está repetida dentro de la lista que pegaste.`);
+                    return;
+                }
+                seenInBatch.add(norm);
+                if (titleIndex.has(norm)) {
+                    const existing = titleIndex.get(norm);
+                    logAudit('descartado', `"${t}" ya existe en la tabla${existing.apiData && existing.apiData.found ? ` como "${existing.apiData.title}"` : ''} — se omitió para no duplicar.`);
+                    return;
+                }
+                deduped.push(t);
+            });
+
+            if (deduped.length === 0) {
+                showToast('Todos los títulos ya estaban en la tabla o repetidos — revisa el Registro de Auditoría.', 'info');
+                return;
+            }
+
+            runBatch(deduped, { isRetry: false });
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (abortController) abortController.abort();
+        });
+
+        retryBtn.addEventListener('click', () => {
+            // Solo reintenta registros del Motor 1: los del Motor 2 (origin 'isbn') se
+            // reintentan pegando de nuevo el ISBN en su propio panel.
+            const failed = records.filter(r => r.status === 'notfound' && r.origin === 'titulo');
+            if (failed.length === 0) return;
+            runBatch(failed, { isRetry: true });
+        });
+
+        titleInput.addEventListener('input', () => {
+            const count = titleInput.value.split('\n').map(i => i.trim()).filter(Boolean).length;
+            countBadge.textContent = `${count}/${MAX_TITLES}`;
+            countBadge.classList.remove('bg-red-500', 'bg-emerald-600', 'bg-slate-200', 'text-white', 'text-slate-500');
+            if (count > MAX_TITLES) {
+                countBadge.classList.add('bg-red-500', 'text-white');
+            } else if (count > 0) {
+                countBadge.classList.add('bg-emerald-600', 'text-white');
+            } else {
+                countBadge.classList.add('bg-slate-200', 'text-slate-500');
+            }
+        });
+
+        isbnInput.addEventListener('input', () => {
+            const count = isbnInput.value.split('\n').map(i => i.trim()).filter(Boolean).length;
+            isbnCountBadge.textContent = `${count}/${MAX_TITLES}`;
+            isbnCountBadge.classList.remove('bg-red-500', 'bg-teal-700', 'bg-slate-200', 'text-white', 'text-slate-500');
+            if (count > MAX_TITLES) {
+                isbnCountBadge.classList.add('bg-red-500', 'text-white');
+            } else if (count > 0) {
+                isbnCountBadge.classList.add('bg-teal-700', 'text-white');
+            } else {
+                isbnCountBadge.classList.add('bg-slate-200', 'text-slate-500');
+            }
+        });
+
+        // ============================================================
+        // MOTOR 2 — orquestación del lote de ISBN (reutiliza el mismo
+        // pool de concurrencia, señales de cancelación y barra de progreso del Motor 1)
+        // ============================================================
+        async function runIsbnBatch(isbnList) {
+            if (isProcessing) return;
+            setProcessingUI(true, 'Comparando ISBN contra el inventario y enriqueciendo registros...');
+            abortController = new AbortController();
+            const beforeUnloadHandler = (e) => { e.preventDefault(); e.returnValue = ''; };
+            window.addEventListener('beforeunload', beforeUnloadHandler);
+
+            try {
+                await processBatch(isbnList, abortController.signal, handleOneIsbnItem);
+                if (abortController.signal.aborted) {
+                    showToast('Motor de ISBN detenido por el usuario.', 'info');
+                } else {
+                    showToast(`Motor de ISBN terminado: ${isbnList.length} ISBN procesados.`, 'success');
+                }
+            } catch (error) {
+                showToast('Ocurrió un error inesperado en el motor de ISBN.', 'error');
+            } finally {
+                window.removeEventListener('beforeunload', beforeUnloadHandler);
+                setProcessingUI(false);
+                statusText.textContent = 'Proceso Finalizado';
+                statusText.classList.remove('animate-pulse', 'text-emerald-600');
+                statusText.classList.add('text-slate-600');
+                progressBar.classList.remove('progress-bar-stripes');
+                logFinalAuditSummary('Motor 2 (ISBN)');
+                updateStats();
+                applyFilters();
+                setTimeout(() => { progressContainer.classList.add('hidden'); }, 2500);
+            }
+        }
+
+        processIsbnBtn.addEventListener('click', () => {
+            if (isProcessing) return;
+            const text = isbnInput.value;
+            let rawIsbns = text.split('\n').map(i => i.trim()).filter(Boolean);
+
+            if (rawIsbns.length === 0) {
+                showToast('Ingresa al menos un ISBN.', 'error');
+                return;
+            }
+            if (rawIsbns.length > MAX_TITLES) {
+                rawIsbns = rawIsbns.slice(0, MAX_TITLES);
+                showToast(`Lista truncada a ${MAX_TITLES} ISBN (límite máximo permitido).`, 'info');
+            }
+
+            // Auditoría — deduplicar la lista de ISBN pegada antes de gastar solicitudes
+            const seenIsbns = new Set();
+            const dedupedIsbns = [];
+            rawIsbns.forEach((raw, idx) => {
+                const norm = normalizeIsbn(raw);
+                if (!norm) return;
+                if (seenIsbns.has(norm)) {
+                    logAudit('duplicado', `ISBN "${raw}" (línea ${idx + 1}) repetido dentro de la lista que pegaste — se omitió.`);
+                    return;
+                }
+                seenIsbns.add(norm);
+                dedupedIsbns.push(raw);
+            });
+
+            if (dedupedIsbns.length === 0) {
+                showToast('No quedaron ISBN válidos tras quitar duplicados — revisa el Registro de Auditoría.', 'info');
+                return;
+            }
+
+            runIsbnBatch(dedupedIsbns);
+        });
+
+        document.getElementById('auditLogToggle').addEventListener('click', () => {
+            document.getElementById('auditLogBody').classList.toggle('hidden');
+            document.getElementById('auditLogChevron').classList.toggle('rotate-180');
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (isProcessing) {
+                showToast('No puedes limpiar mientras se procesan datos.', 'error');
+                return;
+            }
+            records = [];
+            titleCache.clear();
+            recordsTable.querySelectorAll('tr:not(#emptyState)').forEach(row => row.remove());
+            emptyState.style.display = 'table-row';
+            titleInput.value = '';
+            titleInput.dispatchEvent(new Event('input'));
+            filterInput.value = '';
+            filterStatus.value = 'all';
+            filterCount.textContent = '';
+            updateStats();
+            showToast('Tablero limpiado correctamente.', 'success');
+        });
+
+        exportBtn.addEventListener('click', () => {
+            if (records.length === 0) return;
+
+            const rows = [['Título Buscado', 'Título Encontrado', 'Autores', 'Editorial', 'Año', 'ISBN Oficial', 'Fuente', 'Similitud', 'Estado', 'Motor de Origen']];
+            const statusLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado', pending: 'Pendiente' };
+            const originLabel = { titulo: 'Motor 1 (Título)', isbn: 'Motor 2 (ISBN)', importacion: 'Motor 3 (Archivo)' };
+
+            records.forEach(r => {
+                const d = r.apiData;
+                if (d && d.found) {
+                    rows.push([
+                        r.originalTitle, d.title, d.authors || '', d.publisher || '', d.publishYear ? String(d.publishYear) : '',
+                        d.isbn || '', d.source || '', `${Math.round(d.similarity * 100)}%`, statusLabel[r.status] || r.status, originLabel[r.origin] || ''
+                    ]);
+                } else {
+                    rows.push([r.originalTitle, '', '', '', '', '', '', '', statusLabel[r.status] || r.status, originLabel[r.origin] || '']);
+                }
+            });
+
+            const csvBody = rows.map(row =>
+                row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
+            ).join('\r\n');
+
+            const BOM = '\uFEFF'; // asegura acentos correctos al abrir en Excel
+            const blob = new Blob([BOM + csvBody], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `informe_libros_${Date.now()}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast('Archivo CSV generado y descargado.', 'success');
+        });
+
+        // ============================================================
+        // Exportación a la plantilla "Inventario Biblioteca Viva"
+        // ============================================================
+        function base64ToArrayBuffer(base64) {
+            const binaryStr = atob(base64);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            return bytes.buffer;
+        }
+
+        const TEMPLATE_LAST_ROW = 401; // última fila con fórmulas/validaciones ya presentes en la plantilla original
+        const AUX_START_COL = 16;      // columna P: inicio de las columnas auxiliares (no oficiales)
+        const AUX_HEADERS = [
+            'Motor de origen (aux.)',
+            'Fuente (aux. no oficial)',
+            'Similitud % (aux.)',
+            'Estado de Validación (aux.)',
+            'Campos sin verificar — revisión manual genuina (aux.)',
+            'Portada de catálogo — solo referencia, NO es la foto física (aux.)'
+        ];
+        const AUX_HEADER_FILL = 'F59E0B'; // ámbar: distinto del teal oficial, para que se note que no es parte del inventario
+
+        // Reglas de las 6 listas desplegables de la hoja Inventario, tal como vienen en la plantilla original.
+        // Se usan solo si hay que extender la validación más allá de la fila 401.
+        const DATA_VALIDATION_RULES = [
+            { col: 'H', formula1: '"Excelente,Muy Bueno,Bueno,Aceptable,Deteriorado"' },
+            { col: 'I', formula1: '"Rincón,General"' },
+            { col: 'J', formula1: '"1°,2°,3°,4°,5°,6°"' },
+            { col: 'K', formula1: 'Rincon_Series' },
+            { col: 'L', formula1: '"Informativo,Literario"' },
+            { col: 'M', formula1: 'INDIRECT(IF($I2="Rincón","Rincon_G"&SUBSTITUTE($J2,"°","")&"_"&$L2,"General_"&$L2))' }
+        ];
+
+        exportInventarioBtn.addEventListener('click', async () => {
+            if (records.length === 0) return;
+            if (typeof XlsxPopulate === 'undefined') {
+                showToast('No se pudo cargar el motor de Excel (XlsxPopulate). Revisa tu conexión.', 'error');
+                return;
+            }
+
+            exportInventarioBtn.disabled = true;
+            const originalLabel = exportInventarioBtn.innerHTML;
+            exportInventarioBtn.innerHTML = '<span class="animate-pulse">Generando archivo...</span>';
+
+            try {
+                const buffer = base64ToArrayBuffer(INVENTARIO_TEMPLATE_B64);
+                const wb = await XlsxPopulate.fromDataAsync(buffer);
+                const ws = wb.sheet('Inventario');
+
+                // Se exporta en el mismo orden en que aparecen en la tabla (más reciente primero),
+                // igual que se ven en pantalla.
+                const lastRow = records.length + 1;
+
+                records.forEach((rec, idx) => {
+                    const row = idx + 2;
+                    const d = rec.apiData;
+                    const found = d && d.found;
+
+                    // Columnas oficiales C-G. A (Portada), H-M y O se dejan en blanco a propósito:
+                    // requieren inspección física del ejemplar o juicio pedagógico del maestro.
+                    const titulo = found ? d.title : rec.originalTitle;
+                    ws.cell(`C${row}`).value(titulo);
+                    if (found) {
+                        if (d.authors) ws.cell(`D${row}`).value(d.authors);
+                        if (d.publisher) ws.cell(`E${row}`).value(d.publisher);
+                        const yearNum = Number(d.publishYear);
+                        if (d.publishYear && !isNaN(yearNum)) ws.cell(`F${row}`).value(yearNum);
+                        if (d.isbn) ws.cell(`G${row}`).value(String(d.isbn));
+                    }
+
+                    // Columnas auxiliares (no oficiales), P-U
+                    const estadoLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado' }[rec.status] || rec.status;
+                    const originLabelXlsx = { titulo: 'Motor 1 (Título)', isbn: 'Motor 2 (ISBN)', importacion: 'Motor 3 (Archivo)' }[rec.origin] || '';
+                    const camposFaltantes = found
+                        ? ['authors', 'publisher', 'isbn', 'publishYear'].filter(f => !d[f]).map(f => FIELD_LABELS[f]).join(', ')
+                        : 'Título completo';
+                    ws.cell(row, AUX_START_COL).value(originLabelXlsx);
+                    ws.cell(row, AUX_START_COL + 1).value(found ? (d.source || '') : '');
+                    ws.cell(row, AUX_START_COL + 2).value(found ? Math.round(d.similarity * 100) : '');
+                    ws.cell(row, AUX_START_COL + 3).value(estadoLabel);
+                    ws.cell(row, AUX_START_COL + 4).value(camposFaltantes);
+                    ws.cell(row, AUX_START_COL + 5).value(found && d.coverUrl ? d.coverUrl : '');
+                });
+
+                // Extender fórmulas B (N°) y N (Color) más allá de la fila 401, si el lote es más grande
+                if (lastRow > TEMPLATE_LAST_ROW) {
+                    for (let row = TEMPLATE_LAST_ROW + 1; row <= lastRow; row++) {
+                        ws.cell(`B${row}`).formula(`IF(C${row}="","",COUNTA($C$2:C${row}))`);
+                        ws.cell(`N${row}`).formula(`IF($I${row}<>"General","",IFERROR(INDEX('Clasificador SEP'!$C$4:$C$15,MATCH($M${row},'Clasificador SEP'!$A$4:$A$15,0)),""))`);
+                    }
+
+                    // Extender las 6 listas desplegables. Se evita a propósito el setter público
+                    // ws.dataValidation(addr, obj): tiene un bug real que serializa atributos no usados
+                    // como el string literal "undefined", generando un XML inválido. Se construye el
+                    // nodo interno a mano, igual que como vienen los nodos originales de la plantilla.
+                    DATA_VALIDATION_RULES.forEach(({ col, formula1 }) => {
+                        const oldAddr = `${col}2:${col}${TEMPLATE_LAST_ROW}`;
+                        const newAddr = `${col}2:${col}${lastRow}`;
+                        delete ws._dataValidations[oldAddr];
+                        ws._dataValidations[newAddr] = {
+                            name: 'dataValidation',
+                            attributes: { type: 'list', allowBlank: true, sqref: newAddr },
+                            children: [{ name: 'formula1', atrributes: {}, children: [formula1] }]
+                        };
+                    });
+                }
+
+                // Encabezados de las columnas auxiliares, con estilo distinto (ámbar) para que se note
+                // a simple vista que no son parte del inventario oficial.
+                AUX_HEADERS.forEach((label, i) => {
+                    const cell = ws.cell(1, AUX_START_COL + i);
+                    cell.value(label);
+                    cell.style({ bold: true, fontColor: 'FFFFFF', fill: AUX_HEADER_FILL, fontFamily: 'Arial', fontSize: 10 });
+                });
+
+                const outputBlob = await wb.outputAsync();
+                const url = URL.createObjectURL(outputBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Inventario_Biblioteca_Viva_${Date.now()}.xlsx`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                showToast(`Archivo generado con ${records.length} título(s). Revisa las columnas ámbar (auxiliares) y completa a mano lo que requiere inspección física.`, 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('No se pudo generar el archivo de Inventario. Intenta de nuevo.', 'error');
+            } finally {
+                exportInventarioBtn.disabled = false;
+                exportInventarioBtn.innerHTML = originalLabel;
+            }
+        });
+
+        // ============================================================
+        // API PÚBLICA — superficie controlada y deliberada para que módulos
+        // externos (importacion.js) interoperen con el estado interno de esta
+        // IIFE sin acceder directamente a sus variables privadas.
+        // ============================================================
+        window.Validador = {
+            // Estado (acceso siempre vía función, nunca por copia directa — evita referencias
+            // obsoletas cuando `records` se reasigna internamente, p. ej. al limpiar la tabla)
+            getRecords: () => records,
+            get isProcessing() { return isProcessing; },
+            MAX_TITLES,
+            FIELD_LABELS,
+            STRONG_SIMILARITY,
+            MIN_ACCEPTABLE_SIMILARITY,
+
+            // Índices de deduplicación (mismos Map que usan los Motores 1 y 2)
+            isbnIndex,
+            titleIndex,
+            indexRecord,
+
+            // Inserción / fusión de registros (misma lógica que usan los Motores 1 y 2)
+            insertNewRecord,
+            mergeFieldsIntoRecord,
+
+            // Utilidades de texto e ISBN
+            normalizeText,
+            normalizeIsbn,
+            isValidIsbn,
+            similarityRatio,
+            escapeHtml,
+
+            // Relleno de huecos vía las 3 fuentes (Smart Fetching del Motor 3 reutiliza esto)
+            fillMissingFields,
+
+            // Orquestación compartida (barra de progreso, bloqueo de UI, cancelación)
+            processBatch,
+            setProcessingUI,
+            createAbortController: () => { abortController = new AbortController(); return abortController; },
+            getAbortController: () => abortController,
+
+            // Feedback visual
+            showToast,
+            logAudit,
+            logFinalAuditSummary,
+            updateStats,
+            applyFilters,
+            renderRow
+        };
+
+    })();
+    </script>
+    <script src="importacion.js"></script>
+</body>
+</html>
