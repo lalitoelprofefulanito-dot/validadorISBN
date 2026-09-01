@@ -138,7 +138,7 @@
             box.appendChild(title);
 
             const grid = document.createElement('div');
-            grid.className = 'space-y-1.5';
+            grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5';
             fileEntry.headers.forEach((header, colIdx) => {
                 const row = document.createElement('div');
                 row.className = 'flex items-center gap-2';

@@ -89,6 +89,26 @@
             </div>
         </div>
 
+        <!-- Motor 4: asistente de clasificación SEP (uno por uno, con lista real de la plantilla) -->
+        <div id="classifyModal" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-start mb-3 gap-2">
+                    <div class="min-w-0">
+                        <span id="classifyModeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded"></span>
+                        <h3 id="classifyItemTitle" class="text-base font-bold text-slate-800 mt-1 leading-snug"></h3>
+                        <p id="classifyItemAuthor" class="text-xs text-slate-500"></p>
+                    </div>
+                    <button id="classifyCloseBtn" type="button" class="text-slate-400 hover:text-slate-600 text-xl leading-none shrink-0">&times;</button>
+                </div>
+                <div id="classifyFields" class="space-y-3 text-sm"></div>
+                <div class="flex gap-2 mt-5">
+                    <button id="classifySkipBtn" type="button" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg text-sm transition-all">Omitir por ahora</button>
+                    <button id="classifySaveBtn" type="button" class="flex-1 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold py-2.5 rounded-lg text-sm transition-all">Guardar y siguiente</button>
+                </div>
+                <p id="classifyProgressText" class="text-xs text-slate-400 mt-3 text-center"></p>
+            </div>
+        </div>
+
         <!-- Header -->
         <header class="bg-gradient-to-r from-emerald-700 to-teal-800 text-white p-6 md:p-8">
             <div class="flex items-center justify-between flex-wrap gap-4">
@@ -206,7 +226,7 @@
                         Arrastra aquí uno o varios .xlsx / .csv, o haz clic para elegirlos
                         <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" multiple class="hidden">
                     </div>
-                    <div id="importMappingPanel" class="hidden mt-3 space-y-3"></div>
+                    <div id="importMappingPanel" class="hidden mt-3 space-y-3 max-h-72 overflow-y-auto pr-1"></div>
                     <button type="button" id="importConfirmBtn" class="hidden w-full mt-3 bg-purple-700 hover:bg-purple-800 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
                         Confirmar mapeo y consolidar
                     </button>
@@ -235,7 +255,7 @@
 
             <!-- Right Column: Data Table -->
             <div class="xl:col-span-8 flex flex-col h-full min-h-[600px]">
-                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
                     <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -243,7 +263,7 @@
                         Informe Bibliográfico
                     </h2>
                     <div class="flex items-center gap-2">
-                        <button id="exportInventarioBtn" class="text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 px-3 py-1.5 rounded-md transition-all hidden items-center gap-2 shadow-sm">
+                        <button id="exportInventarioBtn" class="text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 px-3 py-1.5 rounded-md transition-all hidden items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
@@ -255,9 +275,39 @@
                             </svg>
                             Exportar CSV
                         </button>
+                        <button id="exportWordBtn" class="text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-md transition-all hidden flex items-center gap-2 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Reporte con Portadas (Word)
+                        </button>
+                        <button id="copyForWordBtn" class="text-sm font-medium text-blue-800 bg-blue-100 hover:bg-blue-200 border border-blue-300 px-3 py-1.5 rounded-md transition-all hidden flex items-center gap-2 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Copiar con Portadas (pegar en Word)
+                        </button>
+                        <button id="copyForSheetsBtn" class="text-sm font-medium text-green-800 bg-green-100 hover:bg-green-200 border border-green-300 px-3 py-1.5 rounded-md transition-all hidden flex items-center gap-2 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Copiar con Portadas (pegar en Excel 365/Sheets)
+                        </button>
                         <button id="clearBtn" class="text-sm font-medium text-slate-500 hover:text-red-600 bg-white border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-md transition-all hidden flex items-center gap-1 shadow-sm">
                             Limpiar
                         </button>
+                    </div>
+                </div>
+
+                <!-- Motor 4: Clasificación SEP (gate de exportación) -->
+                <div id="classifyToolbar" class="hidden flex items-center justify-between gap-2 flex-wrap bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 mb-4 text-sm">
+                    <span class="text-indigo-800 font-medium flex items-center gap-1.5">
+                        <span class="bg-indigo-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">MOTOR 4</span>
+                        <span id="classifyStatusText">Clasificación SEP</span>
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button id="classifyRinconBtn" type="button" class="text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-md transition-all">Auditar como Rincón</button>
+                        <button id="classifyGeneralBtn" type="button" class="text-xs font-semibold text-indigo-700 bg-white border border-indigo-300 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-all">Clasificar como General</button>
                     </div>
                 </div>
 
@@ -386,6 +436,9 @@
         const emptyState = document.getElementById('emptyState');
         const clearBtn = document.getElementById('clearBtn');
         const exportBtn = document.getElementById('exportBtn');
+        const exportWordBtn = document.getElementById('exportWordBtn');
+        const copyForWordBtn = document.getElementById('copyForWordBtn');
+        const copyForSheetsBtn = document.getElementById('copyForSheetsBtn');
         const exportInventarioBtn = document.getElementById('exportInventarioBtn');
 
         const filterBar = document.getElementById('filterBar');
@@ -757,7 +810,8 @@
                     originalTitle: r.originalTitle,
                     apiData: r.apiData,
                     status: r.status,
-                    origin: r.origin || 'titulo'
+                    origin: r.origin || 'titulo',
+                    manualFields: r.manualFields || null
                 }));
                 localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), records: serializable }));
             } catch (e) {
@@ -778,7 +832,7 @@
             recordsTable.querySelectorAll('tr:not(#emptyState)').forEach(row => row.remove());
             const fragment = document.createDocumentFragment();
             saved.records.forEach(r => {
-                const record = { originalTitle: r.originalTitle, apiData: r.apiData, status: r.status, origin: r.origin || 'titulo', rowEl: null, searchIndex: '' };
+                const record = { originalTitle: r.originalTitle, apiData: r.apiData, status: r.status, origin: r.origin || 'titulo', manualFields: r.manualFields || null, rowEl: null, searchIndex: '' };
                 const tr = createPendingRow(record);
                 record.rowEl = tr;
                 fragment.appendChild(tr);
@@ -817,6 +871,213 @@
                 modal.classList.add('hidden');
             };
         }
+
+        // ============================================================
+        // MOTOR 4 — Clasificación SEP (Rincón / General)
+        // ============================================================
+        // Ninguna fuente web puede saber Procedencia, Grado, Género o Categoría SEP — el
+        // propio Instructivo de la plantilla es explícito: "la aplicación organiza los
+        // datos; usted decide". Este motor NO busca nada; guía al maestro, campo por campo,
+        // usando las listas OFICIALES leídas en vivo de su propia plantilla (nunca copiadas
+        // a mano en el código, para que nunca queden desactualizadas respecto al archivo real).
+        const ESTADO_FISICO_OPTIONS = ['Excelente', 'Muy Bueno', 'Bueno', 'Aceptable', 'Deteriorado'];
+        const GRADO_OPTIONS = ['1°', '2°', '3°', '4°', '5°', '6°'];
+        const GENERO_OPTIONS = ['Informativo', 'Literario'];
+
+        let classifierDataPromise = null;
+        // Lee, UNA sola vez, las listas reales de "Clasificador SEP" y "Clasificador SEP - Rincón"
+        // directo de la plantilla embebida — la misma que usa la exportación — para que el
+        // asistente nunca ofrezca una categoría que la plantilla real no reconocería.
+        function getClassifierData() {
+            if (classifierDataPromise) return classifierDataPromise;
+            classifierDataPromise = (async () => {
+                const buffer = base64ToArrayBuffer(INVENTARIO_TEMPLATE_B64);
+                const wb = await XlsxPopulate.fromDataAsync(buffer);
+
+                const wsGeneral = wb.sheet('Clasificador SEP');
+                const general = []; // [{categoria, genero, color}]
+                for (let r = 4; r <= 15; r++) {
+                    const categoria = wsGeneral.cell(`A${r}`).value();
+                    const genero = wsGeneral.cell(`B${r}`).value();
+                    const color = wsGeneral.cell(`C${r}`).value();
+                    if (categoria) general.push({ categoria, genero, color });
+                }
+
+                const wsRincon = wb.sheet('Clasificador SEP - Rincón');
+                const rincon = {}; // { '1°': { Informativo: [...], Literario: [...] } }
+                let r = 7;
+                while (r <= 120) {
+                    const grado = wsRincon.cell(`A${r}`).value();
+                    const genero = wsRincon.cell(`B${r}`).value();
+                    const categoria = wsRincon.cell(`C${r}`).value();
+                    if (!grado || !genero || !categoria) break; // fin del bloque A (categorías por grado)
+                    if (!rincon[grado]) rincon[grado] = {};
+                    if (!rincon[grado][genero]) rincon[grado][genero] = [];
+                    rincon[grado][genero].push(categoria);
+                    r++;
+                }
+
+                let series = [];
+                const seriesRange = wb.definedName('Rincon_Series');
+                if (seriesRange) series = seriesRange.value().flat().filter(Boolean);
+
+                return { general, rincon, series };
+            })();
+            return classifierDataPromise;
+        }
+
+        let classifyQueue = [];
+        let classifyIndex = 0;
+        let classifyMode = null; // 'rincon' | 'general'
+
+        function pendingClassifyCount() {
+            return records.filter(r => (r.status === 'valid' || r.status === 'review') && !(r.manualFields && r.manualFields.audited)).length;
+        }
+
+        function updateClassifyToolbar() {
+            const toolbar = document.getElementById('classifyToolbar');
+            const statusText = document.getElementById('classifyStatusText');
+            const pending = pendingClassifyCount();
+            const hasBooks = records.some(r => r.status === 'valid' || r.status === 'review');
+            toolbar.classList.toggle('hidden', !hasBooks);
+            statusText.textContent = pending > 0
+                ? `Clasificación SEP — ${pending} libro(s) sin clasificar`
+                : 'Clasificación SEP — completa ✓';
+        }
+
+        async function openClassifyModal(mode) {
+            classifyMode = mode;
+            classifyQueue = records.filter(r => (r.status === 'valid' || r.status === 'review') && !(r.manualFields && r.manualFields.audited));
+            classifyIndex = 0;
+            if (classifyQueue.length === 0) {
+                showToast('No hay libros pendientes de clasificar.', 'info');
+                return;
+            }
+            document.getElementById('classifyModal').classList.remove('hidden');
+            await renderClassifyItem();
+        }
+
+        function closeClassifyModal() {
+            document.getElementById('classifyModal').classList.add('hidden');
+            updateClassifyToolbar();
+        }
+
+        async function renderClassifyItem() {
+            if (classifyIndex >= classifyQueue.length) {
+                closeClassifyModal();
+                showToast('Clasificación completa para este lote.', 'success');
+                return;
+            }
+            const record = classifyQueue[classifyIndex];
+            const data = await getClassifierData();
+
+            const badge = document.getElementById('classifyModeBadge');
+            if (classifyMode === 'rincon') {
+                badge.textContent = 'AUDITAR COMO RINCÓN';
+                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800';
+            } else {
+                badge.textContent = 'CLASIFICAR COMO GENERAL';
+                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800';
+            }
+            document.getElementById('classifyItemTitle').textContent = record.apiData.title;
+            document.getElementById('classifyItemAuthor').textContent = record.apiData.authors || 'Autor no verificado';
+            document.getElementById('classifyProgressText').textContent = `${classifyIndex + 1} de ${classifyQueue.length} pendientes`;
+
+            const fieldsEl = document.getElementById('classifyFields');
+            const existing = record.manualFields || {};
+
+            function selectHtml(id, label, options, currentValue, required) {
+                const opts = ['<option value="">— Selecciona —</option>'].concat(
+                    options.map(o => `<option value="${escapeHtml(o)}" ${o === currentValue ? 'selected' : ''}>${escapeHtml(o)}</option>`)
+                ).join('');
+                return `<div><label class="block text-xs font-semibold text-slate-600 mb-1">${label}${required ? ' *' : ''}</label><select id="${id}" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">${opts}</select></div>`;
+            }
+
+            if (classifyMode === 'rincon') {
+                const gradoActual = existing.grado || '';
+                const generoActual = existing.generoSEP || '';
+                fieldsEl.innerHTML = `
+                    ${selectHtml('cfGrado', 'Grado', GRADO_OPTIONS, gradoActual, true)}
+                    ${selectHtml('cfGenero', 'Género SEP', GENERO_OPTIONS, generoActual, true)}
+                    <div id="cfCategoriaWrap"></div>
+                    ${selectHtml('cfSerie', 'Serie (perfil lector)', data.series, existing.serie || '', false)}
+                    ${selectHtml('cfEstado', 'Estado físico', ESTADO_FISICO_OPTIONS, existing.estadoFisico || '', true)}
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Observaciones</label><textarea id="cfObs" rows="2" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none">${escapeHtml(existing.observaciones || '')}</textarea></div>
+                `;
+                const refreshCategoria = () => {
+                    const grado = document.getElementById('cfGrado').value;
+                    const genero = document.getElementById('cfGenero').value;
+                    const cats = (grado && genero && data.rincon[grado]) ? (data.rincon[grado][genero] || []) : [];
+                    document.getElementById('cfCategoriaWrap').innerHTML = cats.length
+                        ? selectHtml('cfCategoria', 'Categoría SEP oficial', cats, existing.categoriaSEP || '', true)
+                        : `<div><label class="block text-xs font-semibold text-slate-600 mb-1">Categoría SEP oficial *</label><div class="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-2 py-2">Selecciona Grado y Género primero.</div></div>`;
+                };
+                document.getElementById('cfGrado').addEventListener('change', refreshCategoria);
+                document.getElementById('cfGenero').addEventListener('change', refreshCategoria);
+                refreshCategoria();
+            } else {
+                const generoActual = existing.generoSEP || '';
+                fieldsEl.innerHTML = `
+                    ${selectHtml('cfGenero', 'Género SEP', GENERO_OPTIONS, generoActual, true)}
+                    <div id="cfCategoriaWrap"></div>
+                    ${selectHtml('cfGrado', 'Grado (referencia, opcional)', GRADO_OPTIONS, existing.grado || '', false)}
+                    ${selectHtml('cfEstado', 'Estado físico', ESTADO_FISICO_OPTIONS, existing.estadoFisico || '', true)}
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Observaciones</label><textarea id="cfObs" rows="2" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none">${escapeHtml(existing.observaciones || '')}</textarea></div>
+                `;
+                const refreshCategoria = () => {
+                    const genero = document.getElementById('cfGenero').value;
+                    const cats = data.general.filter(c => c.genero === genero).map(c => c.categoria);
+                    document.getElementById('cfCategoriaWrap').innerHTML = cats.length
+                        ? selectHtml('cfCategoria', 'Categoría SEP institucional', cats, existing.categoriaSEP || '', true)
+                        : `<div><label class="block text-xs font-semibold text-slate-600 mb-1">Categoría SEP institucional *</label><div class="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-2 py-2">Selecciona Género primero.</div></div>`;
+                };
+                document.getElementById('cfGenero').addEventListener('change', refreshCategoria);
+                refreshCategoria();
+            }
+        }
+
+        function saveClassifyItem() {
+            const record = classifyQueue[classifyIndex];
+            const estadoFisico = document.getElementById('cfEstado').value;
+            const genero = document.getElementById('cfGenero').value;
+            const categoriaEl = document.getElementById('cfCategoria');
+            const categoria = categoriaEl ? categoriaEl.value : '';
+            const obs = document.getElementById('cfObs').value.trim();
+
+            if (classifyMode === 'rincon') {
+                const grado = document.getElementById('cfGrado').value;
+                const serie = document.getElementById('cfSerie').value;
+                if (!grado || !genero || !categoria || !estadoFisico) {
+                    showToast('Completa Grado, Género, Categoría y Estado físico (los marcados con *).', 'error');
+                    return;
+                }
+                record.manualFields = { estadoFisico, procedencia: 'Rincón', grado, serie: serie || null, generoSEP: genero, categoriaSEP: categoria, observaciones: obs || null, audited: true, origin: 'rincon' };
+                logAudit('completado', `Clasificación SEP (Rincón) aplicada a "${record.apiData.title}": Grado ${grado}, ${genero}, Categoría "${categoria}".`);
+            } else {
+                const grado = document.getElementById('cfGrado').value;
+                if (!genero || !categoria || !estadoFisico) {
+                    showToast('Completa Género, Categoría y Estado físico (los marcados con *).', 'error');
+                    return;
+                }
+                record.manualFields = { estadoFisico, procedencia: 'General', grado: grado || null, serie: null, generoSEP: genero, categoriaSEP: categoria, observaciones: obs || null, audited: true, origin: 'general' };
+                logAudit('completado', `Clasificación SEP (General) aplicada a "${record.apiData.title}": ${genero}, Categoría "${categoria}".`);
+            }
+            renderRow(record);
+            saveSessionToStorage();
+            classifyIndex++;
+            renderClassifyItem();
+        }
+
+        function skipClassifyItem() {
+            classifyIndex++;
+            renderClassifyItem();
+        }
+
+        document.getElementById('classifyRinconBtn').addEventListener('click', () => openClassifyModal('rincon'));
+        document.getElementById('classifyGeneralBtn').addEventListener('click', () => openClassifyModal('general'));
+        document.getElementById('classifySaveBtn').addEventListener('click', saveClassifyItem);
+        document.getElementById('classifySkipBtn').addEventListener('click', skipClassifyItem);
+        document.getElementById('classifyCloseBtn').addEventListener('click', closeClassifyModal);
 
         // ============================================================
         // MOTOR 2 — Búsqueda directa por ISBN (identificador exacto: sin
@@ -956,23 +1217,12 @@
         // ============================================================
         // MOTOR 2 — enriquecimiento de un registro existente a partir de un ISBN
         // ============================================================
+        // Reutiliza mergeFieldsIntoRecord (misma función que usa el Motor 3): resuelve el ISBN
+        // y fusiona solo lo que falte, sin duplicar la lógica de fusión en dos sitios.
         async function enrichRecordFromIsbn(targetRecord, normIsbn, signal, precomputedCandidate) {
             const candidate = precomputedCandidate || await lookupByISBN(normIsbn, signal);
             if (!candidate) return [];
-            const d = targetRecord.apiData;
-            const filled = [];
-            ['authors', 'publisher', 'publishYear'].forEach(field => {
-                if (!d[field] && candidate[field]) {
-                    d[field] = candidate[field];
-                    filled.push(FIELD_LABELS[field]);
-                }
-            });
-            if (!d.isbn) {
-                d.isbn = normIsbn;
-                filled.push('ISBN');
-            }
-            indexRecord(targetRecord);
-            return filled;
+            return mergeFieldsIntoRecord(targetRecord, { authors: candidate.authors, publisher: candidate.publisher, publishYear: candidate.publishYear, isbn: normIsbn });
         }
 
         // Inserta un registro NUEVO (fila + índices + render). Genérico: lo usan tanto el
@@ -1033,7 +1283,6 @@
                 const filled = await enrichRecordFromIsbn(existingByIsbn, normIsbn, signal);
                 if (filled.length > 0) {
                     logAudit('completado', `ISBN ${normIsbn} coincide con "${existingByIsbn.apiData.title}": completó ${filled.join(', ')} (Motor 2).`);
-                    renderRow(existingByIsbn);
                 } else {
                     logAudit('descartado', `ISBN ${normIsbn} ya existe en el inventario ("${existingByIsbn.apiData.title}") y no tenía campos pendientes — registro descartado (evita duplicado).`);
                 }
@@ -1066,7 +1315,6 @@
             if (bestMatch && bestSim >= STRONG_SIMILARITY) {
                 const filled = await enrichRecordFromIsbn(bestMatch, normIsbn, signal, candidate);
                 logAudit('fusion', `ISBN ${normIsbn} ("${candidate.title}") se unificó con el registro existente "${bestMatch.apiData.title}" (${Math.round(bestSim * 100)}% de coincidencia de título) — se evitó crear un duplicado. Completó: ${filled.length ? filled.join(', ') : 'nada, ya estaba completo'}.`);
-                renderRow(bestMatch);
                 return;
             }
 
@@ -1135,17 +1383,24 @@
             statFound.textContent = valid;
             statReview.textContent = review;
             statNotFound.textContent = notFound;
+            updateClassifyToolbar();
 
             const hasFinishedItems = records.some(r => r.status !== 'pending');
             if (total > 0 && hasFinishedItems) {
                 clearBtn.classList.remove('hidden');
                 exportBtn.classList.remove('hidden');
+                exportWordBtn.classList.remove('hidden');
+                copyForWordBtn.classList.remove('hidden');
+                copyForSheetsBtn.classList.remove('hidden');
                 exportInventarioBtn.classList.remove('hidden');
                 exportInventarioBtn.classList.add('flex');
                 filterBar.classList.remove('hidden');
             } else if (total === 0) {
                 clearBtn.classList.add('hidden');
                 exportBtn.classList.add('hidden');
+                exportWordBtn.classList.add('hidden');
+                copyForWordBtn.classList.add('hidden');
+                copyForSheetsBtn.classList.add('hidden');
                 exportInventarioBtn.classList.add('hidden');
                 exportInventarioBtn.classList.remove('flex');
                 filterBar.classList.add('hidden');
@@ -1270,6 +1525,14 @@
             return `<span class="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">Motor 1 · Título</span>`;
         }
 
+        function classifyBadge(record) {
+            const m = record.manualFields;
+            if (m && m.audited) {
+                return `<span class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded" title="${escapeHtml(m.categoriaSEP || '')}">✓ ${m.procedencia}${m.categoriaSEP ? ' · ' + escapeHtml(m.categoriaSEP) : ''}</span>`;
+            }
+            return `<span class="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Sin clasificar SEP</span>`;
+        }
+
         function renderRow(record) {
             const tr = record.rowEl;
             tr.dataset.recordId = record.id; // vínculo estable para la edición inline (mejora #2)
@@ -1319,6 +1582,7 @@
                                 ${yearHtml}
                                 ${sourceBadge(apiData.source)}
                                 ${originBadge(record.origin)}
+                                ${classifyBadge(record)}
                                 ${editable ? '<span class="text-[10px] text-amber-600 font-semibold">✎ Editable — corrige y haz clic fuera para guardar</span>' : ''}
                             </div>
                         </div>
@@ -1698,19 +1962,22 @@
         exportBtn.addEventListener('click', () => {
             if (records.length === 0) return;
 
-            const rows = [['Título Buscado', 'Título Encontrado', 'Autores', 'Editorial', 'Año', 'ISBN Oficial', 'Fuente', 'Similitud', 'Estado', 'Motor de Origen']];
+            const rows = [['Título Buscado', 'Título Encontrado', 'Autores', 'Editorial', 'Año', 'ISBN Oficial', 'Fuente', 'Similitud', 'Estado', 'Motor de Origen', 'Procedencia SEP', 'Categoría SEP']];
             const statusLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado', pending: 'Pendiente' };
             const originLabel = { titulo: 'Motor 1 (Título)', isbn: 'Motor 2 (ISBN)', importacion: 'Motor 3 (Archivo)' };
 
             records.forEach(r => {
                 const d = r.apiData;
+                const mf = r.manualFields;
+                const procedenciaCsv = mf && mf.audited ? mf.procedencia : 'Sin clasificar';
+                const categoriaCsv = mf && mf.audited ? (mf.categoriaSEP || '') : '';
                 if (d && d.found) {
                     rows.push([
                         r.originalTitle, d.title, d.authors || '', d.publisher || '', d.publishYear ? String(d.publishYear) : '',
-                        d.isbn || '', d.source || '', `${Math.round(d.similarity * 100)}%`, statusLabel[r.status] || r.status, originLabel[r.origin] || ''
+                        d.isbn || '', d.source || '', `${Math.round(d.similarity * 100)}%`, statusLabel[r.status] || r.status, originLabel[r.origin] || '', procedenciaCsv, categoriaCsv
                     ]);
                 } else {
-                    rows.push([r.originalTitle, '', '', '', '', '', '', '', statusLabel[r.status] || r.status, originLabel[r.origin] || '']);
+                    rows.push([r.originalTitle, '', '', '', '', '', '', '', statusLabel[r.status] || r.status, originLabel[r.origin] || '', '', '']);
                 }
             });
 
@@ -1733,6 +2000,200 @@
         });
 
         // ============================================================
+        // Exportación "Reporte con Portadas" (.doc) — misma técnica que ya usa tu otra
+        // app: una tabla HTML disfrazada de documento Word (MIME application/msword).
+        // Las imágenes quedan ENLAZADAS a la URL del catálogo, no incrustadas como píxeles:
+        // Word las descarga al abrir el archivo (requiere internet en ese momento). Es una
+        // limitación real de la técnica, no de esta implementación — igual que en el original.
+        exportWordBtn.addEventListener('click', () => {
+            if (records.length === 0) return;
+
+            let tableRows = '';
+            records.forEach((r, index) => {
+                const d = r.apiData;
+                const found = d && d.found;
+                const imageTag = (found && d.coverUrl)
+                    ? `<img src="${d.coverUrl}" width="80" height="120" style="display:block; margin:auto;" alt="Portada" />`
+                    : `<i>Sin portada</i>`;
+                const estadoLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado' }[r.status] || r.status;
+
+                tableRows += `
+                    <tr>
+                        <td style="text-align:center; padding: 5px;">${index + 1}</td>
+                        <td style="text-align:center; padding: 5px;">${imageTag}</td>
+                        <td style="padding: 5px;"><strong>${escapeHtml(found ? d.title : r.originalTitle)}</strong><br><small>Buscado: ${escapeHtml(r.originalTitle)}</small></td>
+                        <td style="padding: 5px;">${escapeHtml(found ? (d.authors || '') : '')}</td>
+                        <td style="padding: 5px;">${escapeHtml(found ? (d.publisher || '') : '')}</td>
+                        <td style="text-align:center; padding: 5px;">${found ? escapeHtml(d.publishYear || '') : ''}</td>
+                        <td style="padding: 5px; font-family: monospace;">${found ? escapeHtml(d.isbn || '') : ''}</td>
+                        <td style="text-align:center; padding: 5px;">${escapeHtml(estadoLabel)}</td>
+                    </tr>
+                `;
+            });
+
+            const wordDocTemplate = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset='utf-8'>
+                    <title>Reporte de Validación de Libros</title>
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <w:WordDocument>
+                            <w:View>Print</w:View>
+                            <w:Zoom>100</w:Zoom>
+                            <w:DoNotOptimizeForBrowser/>
+                        </w:WordDocument>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        body { font-family: 'Arial', sans-serif; }
+                        h1 { color: #0f6e6a; text-align: center; }
+                        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+                        th { background-color: #f1f5f9; padding: 10px; text-align: left; border: 1px solid #cbd5e1; font-weight: bold; }
+                        td { border: 1px solid #cbd5e1; padding: 10px; vertical-align: middle; }
+                        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #64748b; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Reporte de Validación Masiva de Títulos</h1>
+                    <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-MX')} ${new Date().toLocaleTimeString('es-MX')}</p>
+                    <p><strong>Títulos procesados:</strong> ${records.length}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th width="5%">#</th>
+                                <th width="15%">Portada</th>
+                                <th width="25%">Título de Obra</th>
+                                <th width="15%">Autor(es)</th>
+                                <th width="15%">Editorial</th>
+                                <th width="5%">Año</th>
+                                <th width="10%">ISBN</th>
+                                <th width="10%">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                    <div class="footer">
+                        Generado por el Validador Masivo de Títulos.<br>
+                        Fuentes: OpenLibrary, Google Books, Internet Archive.<br>
+                        Nota: las portadas se enlazan desde el catálogo de origen; Word necesita conexión a internet para mostrarlas al abrir este archivo.
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob(['\ufeff', wordDocTemplate], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `reporte_portadas_${Date.now()}.doc`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast('Reporte con portadas generado. Ábrelo con internet activo para que Word cargue las imágenes.', 'success');
+        });
+
+
+        // ============================================================
+        // "Copiar con Portadas" — copia la tabla al portapapeles como HTML real
+        // (con <img>) para pegarla en Word con Ctrl+V. Misma técnica, validada con
+        // evidencia real, que usar Word para pegar una tabla copiada del navegador:
+        // el navegador ya cargó las imágenes en pantalla (los <img> nunca necesitan
+        // CORS), y es WORD quien las incrusta al pegar — no un fetch() de esta app,
+        // que sí choca con las restricciones CORS de esos servidores. Este botón
+        // automatiza exactamente ese copy-paste manual, sin tener que seleccionar
+        // nada a mano.
+        // ============================================================
+        copyForWordBtn.addEventListener('click', async () => {
+            if (records.length === 0) return;
+
+            let rowsHtml = '';
+            records.forEach((r, i) => {
+                const d = r.apiData;
+                const found = d && d.found;
+                const imgCell = (found && d.coverUrl)
+                    ? `<img src="${d.coverUrl}" width="60" height="90" alt="Portada">`
+                    : 'Sin portada';
+                const estadoLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado' }[r.status] || r.status;
+                rowsHtml += `<tr>
+                    <td style="padding:5px;text-align:center;">${i + 1}</td>
+                    <td style="padding:5px;text-align:center;">${imgCell}</td>
+                    <td style="padding:5px;"><b>${escapeHtml(found ? d.title : r.originalTitle)}</b></td>
+                    <td style="padding:5px;">${escapeHtml(found ? (d.authors || '') : '')}</td>
+                    <td style="padding:5px;">${escapeHtml(found ? (d.publisher || '') : '')}</td>
+                    <td style="padding:5px;text-align:center;">${found ? escapeHtml(String(d.publishYear || '')) : ''}</td>
+                    <td style="padding:5px;font-family:monospace;">${found ? escapeHtml(d.isbn || '') : ''}</td>
+                    <td style="padding:5px;text-align:center;">${escapeHtml(estadoLabel)}</td>
+                </tr>`;
+            });
+
+            const tableHtml = `<table border="1" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11pt;">
+                <tr style="background:#f1f5f9;font-weight:bold;">
+                    <td style="padding:5px;">#</td><td style="padding:5px;">Portada</td><td style="padding:5px;">Título</td>
+                    <td style="padding:5px;">Autor</td><td style="padding:5px;">Editorial</td><td style="padding:5px;">Año</td>
+                    <td style="padding:5px;">ISBN</td><td style="padding:5px;">Estado</td>
+                </tr>
+                ${rowsHtml}
+            </table>`;
+
+            try {
+                if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Clipboard API no disponible');
+                const htmlBlob = new Blob([tableHtml], { type: 'text/html' });
+                const textBlob = new Blob([tableHtml.replace(/<[^>]+>/g, ' ')], { type: 'text/plain' });
+                await navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })]);
+                showToast('Tabla copiada. Pégala en Word con Ctrl+V — las portadas se incrustarán solas.', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('No se pudo copiar automáticamente (tu navegador podría no permitirlo). Selecciona la tabla en pantalla y usa Ctrl+C en su lugar.', 'error');
+            }
+        });
+
+        // ============================================================
+        // "Copiar con Portadas" para hoja de cálculo — copia texto separado por
+        // tabulaciones (TSV) con la columna Portada como fórmula =IMAGE("url") en
+        // texto plano. Al pegar en Excel 365/2024+ o Google Sheets, cada celda que
+        // empieza con "=" se interpreta como fórmula real: la imagen queda GENUINAMENTE
+        // dentro de la celda (se mueve, ordena y filtra con la fila) — no es un objeto
+        // flotante como un Ctrl+V normal de imagen. OJO: =IMAGE() requiere Excel 365 o
+        // Excel 2024+; en Excel 2021/2019/2016 esa celda mostrará #NAME?.
+        // ============================================================
+        copyForSheetsBtn.addEventListener('click', async () => {
+            if (records.length === 0) return;
+
+            const header = ['#', 'Portada', 'Título', 'Autor', 'Editorial', 'Año', 'ISBN', 'Estado'];
+            const rows = [header];
+            records.forEach((r, i) => {
+                const d = r.apiData;
+                const found = d && d.found;
+                const estadoLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado' }[r.status] || r.status;
+                const portadaCell = (found && d.coverUrl) ? `=IMAGE("${d.coverUrl}")` : '';
+                rows.push([
+                    String(i + 1),
+                    portadaCell,
+                    found ? d.title : r.originalTitle,
+                    found ? (d.authors || '') : '',
+                    found ? (d.publisher || '') : '',
+                    found ? String(d.publishYear || '') : '',
+                    found ? (d.isbn || '') : '',
+                    estadoLabel
+                ]);
+            });
+
+            const tsv = rows.map(row => row.map(cell => String(cell).replace(/\t/g, ' ').replace(/\n/g, ' ')).join('\t')).join('\n');
+
+            try {
+                await navigator.clipboard.writeText(tsv);
+                showToast('Tabla copiada. Pégala en Excel 365/2024+ o Google Sheets con Ctrl+V — las portadas aparecerán como imagen real dentro de la celda.', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('No se pudo copiar automáticamente. Intenta de nuevo.', 'error');
+            }
+        });
+
+
+        // ============================================================
         // Exportación a la plantilla "Inventario Biblioteca Viva"
         // ============================================================
         function base64ToArrayBuffer(base64) {
@@ -1750,7 +2211,7 @@
             'Similitud % (aux.)',
             'Estado de Validación (aux.)',
             'Campos sin verificar — revisión manual genuina (aux.)',
-            'Portada de catálogo — solo referencia, NO es la foto física (aux.)'
+            'Portada de catálogo — imagen real vía =IMAGE(), requiere Excel 365/2024+ (aux.)'
         ];
         const AUX_HEADER_FILL = 'F59E0B'; // ámbar: distinto del teal oficial, para que se note que no es parte del inventario
 
@@ -1765,12 +2226,25 @@
             { col: 'M', formula1: 'INDIRECT(IF($I2="Rincón","Rincon_G"&SUBSTITUTE($J2,"°","")&"_"&$L2,"General_"&$L2))' }
         ];
 
+        let exportOverrideArmed = false;
         exportInventarioBtn.addEventListener('click', async () => {
             if (records.length === 0) return;
             if (typeof XlsxPopulate === 'undefined') {
                 showToast('No se pudo cargar el motor de Excel (XlsxPopulate). Revisa tu conexión.', 'error');
                 return;
             }
+
+            // Motor 4 (gate): no se exporta a la plantilla oficial mientras haya libros sin
+            // clasificar — a menos que el maestro confirme explícitamente exportar incompleto
+            // (segundo clic dentro de los siguientes segundos).
+            const pending = pendingClassifyCount();
+            if (pending > 0 && !exportOverrideArmed) {
+                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa "Auditar como Rincón" o "Clasificar como General" — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
+                exportOverrideArmed = true;
+                setTimeout(() => { exportOverrideArmed = false; }, 8000);
+                return;
+            }
+            exportOverrideArmed = false;
 
             exportInventarioBtn.disabled = true;
             const originalLabel = exportInventarioBtn.innerHTML;
@@ -1790,8 +2264,8 @@
                     const d = rec.apiData;
                     const found = d && d.found;
 
-                    // Columnas oficiales C-G. A (Portada), H-M y O se dejan en blanco a propósito:
-                    // requieren inspección física del ejemplar o juicio pedagógico del maestro.
+                    // Columnas oficiales C-G. A (Portada) se deja en blanco a propósito: es la
+                    // foto física del ejemplar, no un dato de catálogo (ver Instructivo).
                     const titulo = found ? d.title : rec.originalTitle;
                     ws.cell(`C${row}`).value(titulo);
                     if (found) {
@@ -1800,6 +2274,20 @@
                         const yearNum = Number(d.publishYear);
                         if (d.publishYear && !isNaN(yearNum)) ws.cell(`F${row}`).value(yearNum);
                         if (d.isbn) ws.cell(`G${row}`).value(String(d.isbn));
+                    }
+
+                    // Columnas H-M y O: SOLO se llenan si pasaron por el Motor 4 (Clasificación
+                    // SEP) — nunca se infieren de datos bibliográficos. N (Color) se deja como
+                    // fórmula, igual que siempre.
+                    const mf = rec.manualFields;
+                    if (mf && mf.audited) {
+                        if (mf.estadoFisico) ws.cell(`H${row}`).value(mf.estadoFisico);
+                        if (mf.procedencia) ws.cell(`I${row}`).value(mf.procedencia);
+                        if (mf.grado) ws.cell(`J${row}`).value(mf.grado);
+                        if (mf.serie) ws.cell(`K${row}`).value(mf.serie);
+                        if (mf.generoSEP) ws.cell(`L${row}`).value(mf.generoSEP);
+                        if (mf.categoriaSEP) ws.cell(`M${row}`).value(mf.categoriaSEP);
+                        if (mf.observaciones) ws.cell(`O${row}`).value(mf.observaciones);
                     }
 
                     // Columnas auxiliares (no oficiales), P-U
@@ -1813,7 +2301,9 @@
                     ws.cell(row, AUX_START_COL + 2).value(found ? Math.round(d.similarity * 100) : '');
                     ws.cell(row, AUX_START_COL + 3).value(estadoLabel);
                     ws.cell(row, AUX_START_COL + 4).value(camposFaltantes);
-                    ws.cell(row, AUX_START_COL + 5).value(found && d.coverUrl ? d.coverUrl : '');
+                    if (found && d.coverUrl) {
+                        ws.cell(row, AUX_START_COL + 5).formula(`IMAGE("${d.coverUrl}")`);
+                    }
                 });
 
                 // Extender fórmulas B (N°) y N (Color) más allá de la fila 401, si el lote es más grande
@@ -1857,7 +2347,7 @@
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
 
-                showToast(`Archivo generado con ${records.length} título(s). Revisa las columnas ámbar (auxiliares) y completa a mano lo que requiere inspección física.`, 'success');
+                showToast(`Archivo generado con ${records.length} título(s). Revisa las columnas ámbar (auxiliares) y completa a mano lo que requiere inspección física. La columna de portada usa =IMAGE(): en Excel 2021/2019 o anterior mostrará #NAME? en vez de la imagen.`, 'success');
             } catch (err) {
                 console.error(err);
                 showToast('No se pudo generar el archivo de Inventario. Intenta de nuevo.', 'error');
