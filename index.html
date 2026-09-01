@@ -66,7 +66,7 @@
         tr[data-hidden="true"] { display: none; }
     </style>
 </head>
-<body class="min-h-screen text-slate-800 p-4 md:p-8 flex justify-center items-start">
+<body class="min-h-screen text-slate-800 p-4 md:p-8 flex flex-col justify-start items-center">
 
     <main class="w-full max-w-7xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-100">
 
@@ -86,26 +86,6 @@
                     <button id="sessionResumeBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-all">Retomar sesión anterior</button>
                     <button id="sessionNewBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg text-sm transition-all">Iniciar nueva</button>
                 </div>
-            </div>
-        </div>
-
-        <!-- Motor 4: asistente de clasificación SEP (uno por uno, con lista real de la plantilla) -->
-        <div id="classifyModal" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-            <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-start mb-3 gap-2">
-                    <div class="min-w-0">
-                        <span id="classifyModeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded"></span>
-                        <h3 id="classifyItemTitle" class="text-base font-bold text-slate-800 mt-1 leading-snug"></h3>
-                        <p id="classifyItemAuthor" class="text-xs text-slate-500"></p>
-                    </div>
-                    <button id="classifyCloseBtn" type="button" class="text-slate-400 hover:text-slate-600 text-xl leading-none shrink-0">&times;</button>
-                </div>
-                <div id="classifyFields" class="space-y-3 text-sm"></div>
-                <div class="flex gap-2 mt-5">
-                    <button id="classifySkipBtn" type="button" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg text-sm transition-all">Omitir por ahora</button>
-                    <button id="classifySaveBtn" type="button" class="flex-1 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold py-2.5 rounded-lg text-sm transition-all">Guardar y siguiente</button>
-                </div>
-                <p id="classifyProgressText" class="text-xs text-slate-400 mt-3 text-center"></p>
             </div>
         </div>
 
@@ -300,15 +280,12 @@
                 </div>
 
                 <!-- Motor 4: Clasificación SEP (gate de exportación) -->
-                <div id="classifyToolbar" class="hidden flex items-center justify-between gap-2 flex-wrap bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 mb-4 text-sm">
+                <div id="classifyToolbar" class="hidden flex items-center gap-2 flex-wrap bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 mb-4 text-sm">
                     <span class="text-indigo-800 font-medium flex items-center gap-1.5">
                         <span class="bg-indigo-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">MOTOR 4</span>
                         <span id="classifyStatusText">Clasificación SEP</span>
                     </span>
-                    <div class="flex items-center gap-2">
-                        <button id="classifyRinconBtn" type="button" class="text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-md transition-all">Auditar como Rincón</button>
-                        <button id="classifyGeneralBtn" type="button" class="text-xs font-semibold text-indigo-700 bg-white border border-indigo-300 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-all">Clasificar como General</button>
-                    </div>
+                    <span class="text-[11px] text-indigo-600">Llena Procedencia, Grado, Género, Categoría, Serie y Estado físico directo en las columnas de la tabla →</span>
                 </div>
 
                 <!-- Filter Toolbar -->
@@ -329,10 +306,16 @@
                         <table class="w-full text-left border-collapse whitespace-nowrap md:whitespace-normal">
                             <thead class="sticky top-0 bg-slate-100 border-b border-slate-200 z-10 shadow-sm">
                                 <tr>
-                                    <th class="p-4 font-semibold text-slate-700 w-[20%] text-xs uppercase tracking-wider">Título Buscado</th>
-                                    <th class="p-4 font-semibold text-slate-700 w-[40%] text-xs uppercase tracking-wider">Libro Recuperado</th>
-                                    <th class="p-4 font-semibold text-slate-700 w-[18%] text-xs uppercase tracking-wider">ISBN Oficial</th>
-                                    <th class="p-4 font-semibold text-slate-700 text-center w-[22%] text-xs uppercase tracking-wider">Validación</th>
+                                    <th class="p-4 font-semibold text-slate-700 w-[14%] text-xs uppercase tracking-wider">Título Buscado</th>
+                                    <th class="p-4 font-semibold text-slate-700 w-[26%] text-xs uppercase tracking-wider">Libro Recuperado</th>
+                                    <th class="p-4 font-semibold text-slate-700 w-[10%] text-xs uppercase tracking-wider">ISBN Oficial</th>
+                                    <th class="p-4 font-semibold text-slate-700 text-center w-[14%] text-xs uppercase tracking-wider">Validación</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Procedencia</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[80px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Grado</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Género</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[180px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Categoría SEP</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[130px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Serie</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Estado Físico</th>
                                 </tr>
                             </thead>
                             <tbody id="recordsTable" class="divide-y divide-slate-100">
@@ -872,22 +855,25 @@
             };
         }
 
+
         // ============================================================
-        // MOTOR 4 — Clasificación SEP (Rincón / General)
+        // MOTOR 4 — Clasificación SEP (columnas en línea, sin ventanas emergentes)
         // ============================================================
         // Ninguna fuente web puede saber Procedencia, Grado, Género o Categoría SEP — el
         // propio Instructivo de la plantilla es explícito: "la aplicación organiza los
-        // datos; usted decide". Este motor NO busca nada; guía al maestro, campo por campo,
-        // usando las listas OFICIALES leídas en vivo de su propia plantilla (nunca copiadas
-        // a mano en el código, para que nunca queden desactualizadas respecto al archivo real).
+        // datos; usted decide". Este motor NO busca nada; agrega 6 columnas directo en la
+        // tabla (como una hoja de cálculo) para llenarlas en bloque, usando las listas
+        // OFICIALES leídas en vivo de la propia plantilla — nunca copiadas a mano en el
+        // código, para que nunca queden desactualizadas respecto al archivo real.
         const ESTADO_FISICO_OPTIONS = ['Excelente', 'Muy Bueno', 'Bueno', 'Aceptable', 'Deteriorado'];
         const GRADO_OPTIONS = ['1°', '2°', '3°', '4°', '5°', '6°'];
         const GENERO_OPTIONS = ['Informativo', 'Literario'];
 
         let classifierDataPromise = null;
+        let classifierDataCache = null;
         // Lee, UNA sola vez, las listas reales de "Clasificador SEP" y "Clasificador SEP - Rincón"
-        // directo de la plantilla embebida — la misma que usa la exportación — para que el
-        // asistente nunca ofrezca una categoría que la plantilla real no reconocería.
+        // directo de la plantilla embebida — la misma que usa la exportación — para que las
+        // columnas nunca ofrezcan una categoría que la plantilla real no reconocería.
         function getClassifierData() {
             if (classifierDataPromise) return classifierDataPromise;
             classifierDataPromise = (async () => {
@@ -926,9 +912,15 @@
             return classifierDataPromise;
         }
 
-        let classifyQueue = [];
-        let classifyIndex = 0;
-        let classifyMode = null; // 'rincon' | 'general'
+        // Carga las listas de clasificación desde que arranca la app (no hasta que el
+        // usuario intente clasificar), y cuando estén listas, refresca las columnas de
+        // TODAS las filas que ya se hayan renderizado con el "Cargando..." de por medio.
+        getClassifierData().then(data => {
+            classifierDataCache = data;
+            records.forEach(r => { if (r.status === 'valid' || r.status === 'review') renderRow(r); });
+        }).catch(err => {
+            console.error('No se pudieron leer las listas de clasificación de la plantilla:', err);
+        });
 
         function pendingClassifyCount() {
             return records.filter(r => (r.status === 'valid' || r.status === 'review') && !(r.manualFields && r.manualFields.audited)).length;
@@ -945,139 +937,89 @@
                 : 'Clasificación SEP — completa ✓';
         }
 
-        async function openClassifyModal(mode) {
-            classifyMode = mode;
-            classifyQueue = records.filter(r => (r.status === 'valid' || r.status === 'review') && !(r.manualFields && r.manualFields.audited));
-            classifyIndex = 0;
-            if (classifyQueue.length === 0) {
-                showToast('No hay libros pendientes de clasificar.', 'info');
-                return;
-            }
-            document.getElementById('classifyModal').classList.remove('hidden');
-            await renderClassifyItem();
+        // Un registro queda "auditado" (cuenta para el gate de exportación) cuando tiene
+        // todos los campos que su propia Procedencia exige: Grado solo es obligatorio si
+        // es Rincón (para General es opcional, según el Instructivo).
+        function recomputeAudited(record) {
+            const m = record.manualFields || (record.manualFields = {});
+            const isRincon = m.procedencia === 'Rincón';
+            const required = ['procedencia', 'generoSEP', 'categoriaSEP', 'estadoFisico'].concat(isRincon ? ['grado'] : []);
+            m.audited = required.every(f => !!m[f]);
+            if (m.audited && !m.origin) m.origin = isRincon ? 'rincon' : 'general';
         }
 
-        function closeClassifyModal() {
-            document.getElementById('classifyModal').classList.add('hidden');
-            updateClassifyToolbar();
-        }
-
-        async function renderClassifyItem() {
-            if (classifyIndex >= classifyQueue.length) {
-                closeClassifyModal();
-                showToast('Clasificación completa para este lote.', 'success');
-                return;
+        // Construye las 6 <td> de clasificación de una fila. Categoría SEP depende de
+        // Procedencia+Grado+Género de ESA MISMA fila, así que sus opciones se recalculan
+        // cada vez que cualquiera de esos tres cambia.
+        function classifyCellsHtml(record) {
+            if (record.status !== 'valid' && record.status !== 'review') {
+                return '<td colspan="6" class="text-center text-slate-300 text-xs">—</td>';
             }
-            const record = classifyQueue[classifyIndex];
-            const data = await getClassifierData();
-
-            const badge = document.getElementById('classifyModeBadge');
-            if (classifyMode === 'rincon') {
-                badge.textContent = 'AUDITAR COMO RINCÓN';
-                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800';
-            } else {
-                badge.textContent = 'CLASIFICAR COMO GENERAL';
-                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800';
+            if (!classifierDataCache) {
+                return '<td colspan="6" class="text-center text-slate-400 text-[11px] p-2">Cargando listas de clasificación de la plantilla...</td>';
             }
-            document.getElementById('classifyItemTitle').textContent = record.apiData.title;
-            document.getElementById('classifyItemAuthor').textContent = record.apiData.authors || 'Autor no verificado';
-            document.getElementById('classifyProgressText').textContent = `${classifyIndex + 1} de ${classifyQueue.length} pendientes`;
+            const data = classifierDataCache;
+            const m = record.manualFields || {};
+            const isRincon = m.procedencia === 'Rincón';
 
-            const fieldsEl = document.getElementById('classifyFields');
-            const existing = record.manualFields || {};
-
-            function selectHtml(id, label, options, currentValue, required) {
-                const opts = ['<option value="">— Selecciona —</option>'].concat(
-                    options.map(o => `<option value="${escapeHtml(o)}" ${o === currentValue ? 'selected' : ''}>${escapeHtml(o)}</option>`)
+            function select(field, options, current) {
+                const opts = ['<option value="">—</option>'].concat(
+                    options.map(o => `<option value="${escapeHtml(o)}" ${o === current ? 'selected' : ''}>${escapeHtml(o)}</option>`)
                 ).join('');
-                return `<div><label class="block text-xs font-semibold text-slate-600 mb-1">${label}${required ? ' *' : ''}</label><select id="${id}" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">${opts}</select></div>`;
+                return `<select class="cf-select text-[11px] border border-indigo-200 rounded px-1 py-1 w-full bg-white focus:ring-1 focus:ring-indigo-500 outline-none" data-cf-field="${field}">${opts}</select>`;
             }
 
-            if (classifyMode === 'rincon') {
-                const gradoActual = existing.grado || '';
-                const generoActual = existing.generoSEP || '';
-                fieldsEl.innerHTML = `
-                    ${selectHtml('cfGrado', 'Grado', GRADO_OPTIONS, gradoActual, true)}
-                    ${selectHtml('cfGenero', 'Género SEP', GENERO_OPTIONS, generoActual, true)}
-                    <div id="cfCategoriaWrap"></div>
-                    ${selectHtml('cfSerie', 'Serie (perfil lector)', data.series, existing.serie || '', false)}
-                    ${selectHtml('cfEstado', 'Estado físico', ESTADO_FISICO_OPTIONS, existing.estadoFisico || '', true)}
-                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Observaciones</label><textarea id="cfObs" rows="2" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none">${escapeHtml(existing.observaciones || '')}</textarea></div>
-                `;
-                const refreshCategoria = () => {
-                    const grado = document.getElementById('cfGrado').value;
-                    const genero = document.getElementById('cfGenero').value;
-                    const cats = (grado && genero && data.rincon[grado]) ? (data.rincon[grado][genero] || []) : [];
-                    document.getElementById('cfCategoriaWrap').innerHTML = cats.length
-                        ? selectHtml('cfCategoria', 'Categoría SEP oficial', cats, existing.categoriaSEP || '', true)
-                        : `<div><label class="block text-xs font-semibold text-slate-600 mb-1">Categoría SEP oficial *</label><div class="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-2 py-2">Selecciona Grado y Género primero.</div></div>`;
-                };
-                document.getElementById('cfGrado').addEventListener('change', refreshCategoria);
-                document.getElementById('cfGenero').addEventListener('change', refreshCategoria);
-                refreshCategoria();
-            } else {
-                const generoActual = existing.generoSEP || '';
-                fieldsEl.innerHTML = `
-                    ${selectHtml('cfGenero', 'Género SEP', GENERO_OPTIONS, generoActual, true)}
-                    <div id="cfCategoriaWrap"></div>
-                    ${selectHtml('cfGrado', 'Grado (referencia, opcional)', GRADO_OPTIONS, existing.grado || '', false)}
-                    ${selectHtml('cfEstado', 'Estado físico', ESTADO_FISICO_OPTIONS, existing.estadoFisico || '', true)}
-                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Observaciones</label><textarea id="cfObs" rows="2" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none">${escapeHtml(existing.observaciones || '')}</textarea></div>
-                `;
-                const refreshCategoria = () => {
-                    const genero = document.getElementById('cfGenero').value;
-                    const cats = data.general.filter(c => c.genero === genero).map(c => c.categoria);
-                    document.getElementById('cfCategoriaWrap').innerHTML = cats.length
-                        ? selectHtml('cfCategoria', 'Categoría SEP institucional', cats, existing.categoriaSEP || '', true)
-                        : `<div><label class="block text-xs font-semibold text-slate-600 mb-1">Categoría SEP institucional *</label><div class="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-2 py-2">Selecciona Género primero.</div></div>`;
-                };
-                document.getElementById('cfGenero').addEventListener('change', refreshCategoria);
-                refreshCategoria();
+            let catOptions = [];
+            if (isRincon && m.grado && m.generoSEP && data.rincon[m.grado]) {
+                catOptions = data.rincon[m.grado][m.generoSEP] || [];
+            } else if (!isRincon && m.procedencia && m.generoSEP) {
+                catOptions = data.general.filter(c => c.genero === m.generoSEP).map(c => c.categoria);
             }
+            const catCell = catOptions.length
+                ? select('categoriaSEP', catOptions, m.categoriaSEP)
+                : `<span class="text-[10px] text-amber-500">Falta Procedencia/Género${isRincon ? '/Grado' : ''}</span>`;
+
+            return `
+                <td class="p-1.5 align-middle bg-indigo-50/20">${select('procedencia', ['Rincón', 'General'], m.procedencia)}</td>
+                <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('grado', GRADO_OPTIONS, m.grado) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
+                <td class="p-1.5 align-middle bg-indigo-50/20">${select('generoSEP', GENERO_OPTIONS, m.generoSEP)}</td>
+                <td class="p-1.5 align-middle bg-indigo-50/20">${catCell}</td>
+                <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('serie', data.series, m.serie) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
+                <td class="p-1.5 align-middle bg-indigo-50/20">${select('estadoFisico', ESTADO_FISICO_OPTIONS, m.estadoFisico)}</td>
+            `;
         }
 
-        function saveClassifyItem() {
-            const record = classifyQueue[classifyIndex];
-            const estadoFisico = document.getElementById('cfEstado').value;
-            const genero = document.getElementById('cfGenero').value;
-            const categoriaEl = document.getElementById('cfCategoria');
-            const categoria = categoriaEl ? categoriaEl.value : '';
-            const obs = document.getElementById('cfObs').value.trim();
+        // Delegado sobre recordsTable: un solo listener cubre las 6 columnas de TODAS las
+        // filas, incluidas las que se agreguen después (las filas se reconstruyen vía
+        // innerHTML constantemente, un listener por celda se perdería en cada re-render).
+        recordsTable.addEventListener('change', (e) => {
+            const target = e.target;
+            if (!target.classList || !target.classList.contains('cf-select')) return;
+            const tr = target.closest('tr');
+            if (!tr) return;
+            const record = recordById.get(Number(tr.dataset.recordId));
+            if (!record) return;
 
-            if (classifyMode === 'rincon') {
-                const grado = document.getElementById('cfGrado').value;
-                const serie = document.getElementById('cfSerie').value;
-                if (!grado || !genero || !categoria || !estadoFisico) {
-                    showToast('Completa Grado, Género, Categoría y Estado físico (los marcados con *).', 'error');
-                    return;
-                }
-                record.manualFields = { estadoFisico, procedencia: 'Rincón', grado, serie: serie || null, generoSEP: genero, categoriaSEP: categoria, observaciones: obs || null, audited: true, origin: 'rincon' };
-                logAudit('completado', `Clasificación SEP (Rincón) aplicada a "${record.apiData.title}": Grado ${grado}, ${genero}, Categoría "${categoria}".`);
-            } else {
-                const grado = document.getElementById('cfGrado').value;
-                if (!genero || !categoria || !estadoFisico) {
-                    showToast('Completa Género, Categoría y Estado físico (los marcados con *).', 'error');
-                    return;
-                }
-                record.manualFields = { estadoFisico, procedencia: 'General', grado: grado || null, serie: null, generoSEP: genero, categoriaSEP: categoria, observaciones: obs || null, audited: true, origin: 'general' };
-                logAudit('completado', `Clasificación SEP (General) aplicada a "${record.apiData.title}": ${genero}, Categoría "${categoria}".`);
+            const field = target.dataset.cfField;
+            if (!record.manualFields) record.manualFields = {};
+            const wasAudited = !!record.manualFields.audited;
+            record.manualFields[field] = target.value || null;
+            // cambiar Procedencia invalida Grado/Categoría/Serie previamente elegidos si ya no aplican
+            if (field === 'procedencia') {
+                if (target.value !== 'Rincón') { record.manualFields.grado = null; record.manualFields.serie = null; }
+                record.manualFields.categoriaSEP = null;
+            }
+            if ((field === 'grado' || field === 'generoSEP')) record.manualFields.categoriaSEP = null;
+
+            recomputeAudited(record);
+            if (wasAudited !== record.manualFields.audited) {
+                logAudit('completado', `Clasificación SEP ${record.manualFields.audited ? 'completada' : 'incompleta'} para "${record.apiData.title}"${record.manualFields.audited ? `: ${record.manualFields.procedencia}, ${record.manualFields.categoriaSEP}` : ''}.`);
             }
             renderRow(record);
+            updateClassifyToolbar();
             saveSessionToStorage();
-            classifyIndex++;
-            renderClassifyItem();
-        }
+        });
 
-        function skipClassifyItem() {
-            classifyIndex++;
-            renderClassifyItem();
-        }
-
-        document.getElementById('classifyRinconBtn').addEventListener('click', () => openClassifyModal('rincon'));
-        document.getElementById('classifyGeneralBtn').addEventListener('click', () => openClassifyModal('general'));
-        document.getElementById('classifySaveBtn').addEventListener('click', saveClassifyItem);
-        document.getElementById('classifySkipBtn').addEventListener('click', skipClassifyItem);
-        document.getElementById('classifyCloseBtn').addEventListener('click', closeClassifyModal);
 
         // ============================================================
         // MOTOR 2 — Búsqueda directa por ISBN (identificador exacto: sin
@@ -1478,7 +1420,7 @@
                         <span class="text-sm">Buscando en OpenLibrary / Google Books / Internet Archive...</span>
                     </div>
                 </td>
-                <td class="p-4 align-middle text-center">
+                <td class="p-4 align-middle text-center" colspan="7">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span> En cola
                     </span>
@@ -1523,14 +1465,6 @@
                 return `<span class="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">Motor 3 · Archivo</span>`;
             }
             return `<span class="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">Motor 1 · Título</span>`;
-        }
-
-        function classifyBadge(record) {
-            const m = record.manualFields;
-            if (m && m.audited) {
-                return `<span class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded" title="${escapeHtml(m.categoriaSEP || '')}">✓ ${m.procedencia}${m.categoriaSEP ? ' · ' + escapeHtml(m.categoriaSEP) : ''}</span>`;
-            }
-            return `<span class="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Sin clasificar SEP</span>`;
         }
 
         function renderRow(record) {
@@ -1582,7 +1516,6 @@
                                 ${yearHtml}
                                 ${sourceBadge(apiData.source)}
                                 ${originBadge(record.origin)}
-                                ${classifyBadge(record)}
                                 ${editable ? '<span class="text-[10px] text-amber-600 font-semibold">✎ Editable — corrige y haz clic fuera para guardar</span>' : ''}
                             </div>
                         </div>
@@ -1614,6 +1547,7 @@
                 <td class="p-4 align-top w-full">${bookUI}</td>
                 <td class="p-4 align-middle border-l border-slate-50">${isbnUI}</td>
                 <td class="p-4 align-middle text-center">${statusUI}</td>
+                ${classifyCellsHtml(record)}
             `;
 
             record.searchIndex = normalizeText(
