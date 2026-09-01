@@ -1798,6 +1798,7 @@
                     progressBar.style.width = `${percent}%`;
                     progressText.textContent = `${completed} de ${total} (${percent}%)`;
                     updateStats();
+                    applyFilters();
 
                     // Mejora #1 — autoguardado cada 10 filas procesadas
                     if (completed % 10 === 0) saveSessionToStorage();
@@ -1868,6 +1869,11 @@
                 records = batch.concat(records);
                 emptyState.style.display = 'none';
             }
+
+            // Las filas recién creadas (o reseteadas a 'pending' en un reintento) todavía no
+            // tienen dataset.hidden evaluado contra el filtro que ya esté activo — sin esto,
+            // aparecerían visibles sin importar el filtro hasta que el primer libro resolviera.
+            applyFilters();
 
             setProcessingUI(true);
             abortController = new AbortController();
