@@ -1216,7 +1216,7 @@
             'Google Books': fetchGoogleBooks,
             'Internet Archive': fetchInternetArchive
         };
-        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año' };
+        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año', coverUrl: 'Portada' };
 
         async function fillMissingFields(record, signal) {
             const d = record.apiData;
@@ -1268,7 +1268,7 @@
         async function enrichRecordFromIsbn(targetRecord, normIsbn, signal, precomputedCandidate) {
             const candidate = precomputedCandidate || await lookupByISBN(normIsbn, signal);
             if (!candidate) return [];
-            return mergeFieldsIntoRecord(targetRecord, { authors: candidate.authors, publisher: candidate.publisher, publishYear: candidate.publishYear, isbn: normIsbn });
+            return mergeFieldsIntoRecord(targetRecord, { authors: candidate.authors, publisher: candidate.publisher, publishYear: candidate.publishYear, isbn: normIsbn, coverUrl: candidate.coverUrl });
         }
 
         // Inserta un registro NUEVO (fila + índices + render). Genérico: lo usan tanto el
@@ -1300,7 +1300,14 @@
         function mergeFieldsIntoRecord(targetRecord, sourceFields) {
             const d = targetRecord.apiData;
             const filled = [];
-            ['authors', 'publisher', 'publishYear', 'isbn'].forEach(field => {
+            // BUG CORREGIDO (auditoría): 'coverUrl' faltaba en esta lista. Era la misma
+            // omisión que ya se había detectado y arreglado en fillMissingFields (Motor 1) —
+            // pero nunca se replicó aquí, así que el Motor 2 (ISBN) y el Motor 3 (archivos,
+            // vía integrateConsolidatedRow) fusionaban autor/editorial/año/ISBN en un registro
+            // ya existente pero descartaban en silencio una portada válida que sí traía la
+            // fuente consultada, dejando el libro sin imagen para siempre sin ningún reintento
+            // posterior que lo detectara.
+            ['authors', 'publisher', 'publishYear', 'isbn', 'coverUrl'].forEach(field => {
                 if (!d[field] && sourceFields[field]) {
                     d[field] = sourceFields[field];
                     filled.push(FIELD_LABELS[field]);
