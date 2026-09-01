@@ -431,7 +431,13 @@
             V.applyFilters();
             V.showToast(`Consolidación completa: ${consolidated.length} registro(s) único(s) de ${pendingFiles.length} archivo(s).`, 'success');
 
-            await smartFetchMissingFields(touched);
+            // OJO: cada registro nuevo se inserta arriba de la tabla (más reciente primero),
+            // así que "touched" en su orden natural queda EXACTAMENTE al revés del orden
+            // visual — lo primero que se procesaría sería lo que está hasta abajo, y lo que
+            // el usuario mira arriba sería lo ÚLTIMO en actualizarse. Se invierte para que la
+            // búsqueda avance de arriba hacia abajo, igual que se ve en pantalla.
+            const touchedInVisualOrder = touched.slice().reverse();
+            await smartFetchMissingFields(touchedInVisualOrder);
             V.logFinalAuditSummary('Motor 3 (Archivos)');
             V.updateStats();
             V.applyFilters();
