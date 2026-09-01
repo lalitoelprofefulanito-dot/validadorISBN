@@ -299,10 +299,11 @@
                         <option value="review">Para revisar</option>
                         <option value="notfound">No encontrados</option>
                     </select>
-                    <label class="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-2 rounded-lg cursor-pointer select-none">
-                        <input type="checkbox" id="filterUnclassified" class="accent-indigo-600">
-                        Solo sin clasificar SEP
-                    </label>
+                    <select id="filterClassify" class="px-3 py-2 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-indigo-50 text-indigo-700">
+                        <option value="all">Clasificación SEP: todos</option>
+                        <option value="classified">Solo clasificados SEP</option>
+                        <option value="unclassified">Solo sin clasificar SEP</option>
+                    </select>
                     <span id="filterCount" class="text-xs text-slate-500 self-center px-2"></span>
                 </div>
 
@@ -956,8 +957,7 @@
         // hace algo: activa el filtro de pendientes, desplaza la tabla hasta las 6 columnas
         // (que viven al final, fuera de vista sin scroll horizontal) y salta a la primera fila.
         document.getElementById('goToClassifyBtn').addEventListener('click', () => {
-            const filterCheckbox = document.getElementById('filterUnclassified');
-            filterCheckbox.checked = true;
+            document.getElementById('filterClassify').value = 'unclassified';
             applyFilters();
 
             const container = document.getElementById('tableScrollContainer');
@@ -1471,19 +1471,22 @@
         function applyFilters() {
             const query = normalizeText(filterInput.value);
             const status = filterStatus.value;
-            const onlyUnclassified = document.getElementById('filterUnclassified').checked;
+            const classifyFilter = document.getElementById('filterClassify').value; // 'all' | 'classified' | 'unclassified'
             let visible = 0;
             records.forEach(rec => {
                 if (!rec.rowEl) return;
                 const matchesStatus = status === 'all' || rec.status === status;
                 const matchesQuery = !query || (rec.searchIndex && rec.searchIndex.includes(query));
                 const isClassifiable = rec.status === 'valid' || rec.status === 'review';
-                const matchesUnclassified = !onlyUnclassified || (isClassifiable && !(rec.manualFields && rec.manualFields.audited));
-                const show = matchesStatus && matchesQuery && matchesUnclassified;
+                const isAudited = isClassifiable && !!(rec.manualFields && rec.manualFields.audited);
+                const matchesClassify = classifyFilter === 'all'
+                    || (classifyFilter === 'classified' && isAudited)
+                    || (classifyFilter === 'unclassified' && isClassifiable && !isAudited);
+                const show = matchesStatus && matchesQuery && matchesClassify;
                 rec.rowEl.dataset.hidden = show ? 'false' : 'true';
                 if (show) visible++;
             });
-            filterCount.textContent = (query || status !== 'all' || onlyUnclassified) ? `${visible} de ${records.length}` : '';
+            filterCount.textContent = (query || status !== 'all' || classifyFilter !== 'all') ? `${visible} de ${records.length}` : '';
         }
 
         let filterDebounce = null;
@@ -1492,7 +1495,7 @@
             filterDebounce = setTimeout(applyFilters, 150);
         });
         filterStatus.addEventListener('change', applyFilters);
-        document.getElementById('filterUnclassified').addEventListener('change', applyFilters);
+        document.getElementById('filterClassify').addEventListener('change', applyFilters);
 
         // Mejora #2 — confirma cada corrección manual cuando el campo editable pierde el
         // foco. Delegado sobre recordsTable (las filas se reconstruyen constantemente vía
@@ -2003,6 +2006,7 @@
             titleInput.dispatchEvent(new Event('input'));
             filterInput.value = '';
             filterStatus.value = 'all';
+            document.getElementById('filterClassify').value = 'all';
             filterCount.textContent = '';
             updateStats();
             showToast('Tablero limpiado correctamente.', 'success');
@@ -2288,7 +2292,7 @@
             // (segundo clic dentro de los siguientes segundos).
             const pending = pendingClassifyCount();
             if (pending > 0 && !exportOverrideArmed) {
-                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa "Auditar como Rincón" o "Clasificar como General" — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
+                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa "Ir a clasificar →" arriba de la tabla para completarlos — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
                 exportOverrideArmed = true;
                 setTimeout(() => { exportOverrideArmed = false; }, 8000);
                 return;
