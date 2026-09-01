@@ -26,13 +26,46 @@
     const CANONICAL_FIELDS = {
         titulo: ['titulo', 'título', 'title', 'nombre del libro', 'nombre', 'obra', 'book title'],
         autor: ['autor', 'autores', 'author', 'authors', 'writer', 'escritor'],
-        editorial: ['editorial', 'publisher', 'edicion', 'edición', 'editora', 'casa editorial', 'sello'],
+        editorial: ['editorial', 'publisher', 'edicion', 'edición', 'editora', 'casa editorial', 'sello editorial'],
         anio: ['año', 'ano', 'anio', 'year', 'fecha de publicacion', 'fecha de publicación', 'publishyear', 'publish year', 'anio de publicacion'],
-        isbn: ['isbn', 'isbn13', 'isbn-13', 'isbn10', 'isbn-10', 'codigo isbn', 'código isbn']
+        isbn: ['isbn', 'isbn13', 'isbn-13', 'isbn10', 'isbn-10', 'codigo isbn', 'código isbn'],
+        // Campos de clasificación SEP (Motor 4) — mismo criterio: se importan tal cual si el
+        // archivo ya los trae, nunca se infieren a partir de datos bibliográficos.
+        estadoFisico: ['estado fisico', 'estado físico', 'condicion', 'condición', 'estado del libro', 'physical condition'],
+        procedencia: ['procedencia', 'origen', 'tipo de acervo', 'fuente del acervo', 'acervo'],
+        grado: ['grado', 'grado escolar', 'nivel', 'grade'],
+        serie: ['serie', 'serie rincon', 'serie sep', 'perfil lector'],
+        generoSEP: ['genero sep', 'género sep', 'genero', 'género', 'tipo de texto'],
+        categoriaSEP: ['categoria sep', 'categoría sep', 'categoria', 'categoría', 'clasificacion sep', 'clasificación sep'],
+        observaciones: ['observaciones', 'notas', 'comentarios', 'nota']
     };
-    const FIELD_ORDER = ['titulo', 'autor', 'editorial', 'anio', 'isbn'];
-    const FIELD_DISPLAY = { titulo: 'Título', autor: 'Autor', editorial: 'Editorial', anio: 'Año', isbn: 'ISBN' };
+    const FIELD_ORDER = ['titulo', 'autor', 'editorial', 'anio', 'isbn', 'estadoFisico', 'procedencia', 'grado', 'serie', 'generoSEP', 'categoriaSEP', 'observaciones'];
+    const FIELD_DISPLAY = {
+        titulo: 'Título', autor: 'Autor', editorial: 'Editorial', anio: 'Año', isbn: 'ISBN',
+        estadoFisico: 'Estado físico', procedencia: 'Procedencia', grado: 'Grado', serie: 'Serie',
+        generoSEP: 'Género SEP', categoriaSEP: 'Categoría SEP', observaciones: 'Observaciones'
+    };
     const HEADER_MATCH_THRESHOLD = 0.72; // similitud mínima para sugerir un mapeo por coincidencia difusa
+
+    // Vocabulario controlado (mismas 4 listas fijas que usa el Motor 4) — un valor que no
+    // coincida con ninguna opción oficial se descarta con aviso, en vez de aceptarse tal cual.
+    const CONTROLLED_VOCAB = {
+        estadoFisico: ['Excelente', 'Muy Bueno', 'Bueno', 'Aceptable', 'Deteriorado'],
+        procedencia: ['Rincón', 'General'],
+        grado: ['1°', '2°', '3°', '4°', '5°', '6°'],
+        generoSEP: ['Informativo', 'Literario']
+    };
+    function matchControlledVocab(field, rawValue, fileName) {
+        const options = CONTROLLED_VOCAB[field];
+        if (!options) return rawValue; // categoriaSEP/serie/observaciones: sin lista fija, se acepta tal cual
+        const norm = V.normalizeText(rawValue);
+        const match = options.find(opt => V.normalizeText(opt) === norm);
+        if (!match) {
+            V.logAudit('pendiente', `Archivo "${fileName}": el valor "${rawValue}" de ${FIELD_DISPLAY[field]} no coincide con ninguna opción oficial (${options.join('/')}) — se ignoró ese campo para esta fila.`);
+            return null;
+        }
+        return match;
+    }
 
     let pendingFiles = []; // [{ name, headers: string[], rows: any[][], mapping: (string|null)[] }]
 
@@ -183,7 +216,9 @@
                 const val = rawRow[colIdx];
                 if (val === undefined || val === null) return;
                 const str = String(val).trim();
-                if (str) rec[field] = str;
+                if (!str) return;
+                const validated = matchControlledVocab(field, str, fileEntry.name);
+                if (validated) rec[field] = validated;
             });
             if (rec.titulo || rec.isbn) out.push(rec);
         });
@@ -251,6 +286,8 @@
     // Motor 2: ISBN existente → enriquecer; título similar sin ISBN →
     // unificar; si no, registro nuevo. Nunca se crea un duplicado.
     // ============================================================
+    const MANUAL_FIELD_KEYS = ['estadoFisico', 'procedencia', 'grado', 'serie', 'generoSEP', 'categoriaSEP', 'observaciones'];
+
     function integrateConsolidatedRow(rec) {
         const sourceFields = {
             authors: rec.autor || null,
@@ -258,12 +295,17 @@
             publishYear: rec.anio || null,
             isbn: rec.isbn || null
         };
+        const manualFieldsCandidate = {};
+        MANUAL_FIELD_KEYS.forEach(f => { if (rec[f]) manualFieldsCandidate[f] = rec[f]; });
+        const hasManualFields = Object.keys(manualFieldsCandidate).length > 0;
 
         if (sourceFields.isbn && V.isbnIndex.has(sourceFields.isbn)) {
             const existing = V.isbnIndex.get(sourceFields.isbn);
             const filled = V.mergeFieldsIntoRecord(existing, sourceFields);
-            if (filled.length > 0) {
-                V.logAudit('completado', `Archivo: ISBN ${sourceFields.isbn} coincide con "${existing.apiData.title}": completó ${filled.join(', ')} (Motor 3).`);
+            const filledManual = hasManualFields ? V.mergeManualFields(existing, manualFieldsCandidate) : [];
+            const allFilled = filled.concat(filledManual.map(f => FIELD_DISPLAY[f]));
+            if (allFilled.length > 0) {
+                V.logAudit('completado', `Archivo: ISBN ${sourceFields.isbn} coincide con "${existing.apiData.title}": completó ${allFilled.join(', ')} (Motor 3).`);
             } else {
                 V.logAudit('descartado', `Archivo: ISBN ${sourceFields.isbn} ya existe en el inventario ("${existing.apiData.title}") y no tenía campos pendientes — se descartó (evita duplicado).`);
             }
@@ -280,7 +322,9 @@
             });
             if (bestMatch && bestSim >= V.STRONG_SIMILARITY) {
                 const filled = V.mergeFieldsIntoRecord(bestMatch, sourceFields);
-                V.logAudit('fusion', `Archivo: "${rec.titulo}" se unificó con el registro existente "${bestMatch.apiData.title}" (${Math.round(bestSim * 100)}% de coincidencia de título) — se evitó un duplicado. Completó: ${filled.length ? filled.join(', ') : 'nada nuevo'}.`);
+                const filledManual = hasManualFields ? V.mergeManualFields(bestMatch, manualFieldsCandidate) : [];
+                const allFilled = filled.concat(filledManual.map(f => FIELD_DISPLAY[f]));
+                V.logAudit('fusion', `Archivo: "${rec.titulo}" se unificó con el registro existente "${bestMatch.apiData.title}" (${Math.round(bestSim * 100)}% de coincidencia de título) — se evitó un duplicado. Completó: ${allFilled.length ? allFilled.join(', ') : 'nada nuevo'}.`);
                 return bestMatch;
             }
             // Zona gris (30%-60%): no fusiona sola, pero se documenta como alerta explícita
@@ -304,15 +348,20 @@
             coverUrl: null
         } : { found: false, networkError: false };
 
+        // Si el archivo ya trae clasificación completa, se calcula "audited" ANTES de insertar
+        // la fila, para que la tabla la muestre ya clasificada desde el primer render.
+        if (hasManualFields) V.recomputeAudited({ manualFields: manualFieldsCandidate });
+
         const newRecord = V.insertNewRecord({
             originalTitle: rec.titulo || `ISBN sin título: ${rec.isbn}`,
             apiData,
             status: found ? 'valid' : 'notfound',
             rowEl: null,
             searchIndex: '',
-            origin: 'importacion'
+            origin: 'importacion',
+            manualFields: hasManualFields ? manualFieldsCandidate : null
         });
-        V.logAudit('completado', `Archivo: "${rec.titulo || rec.isbn}" agregado como registro nuevo (Motor 3).`);
+        V.logAudit('completado', `Archivo: "${rec.titulo || rec.isbn}" agregado como registro nuevo (Motor 3)${hasManualFields && manualFieldsCandidate.audited ? ', ya clasificado' : ''}.`);
         return newRecord;
     }
 

@@ -298,6 +298,10 @@
                         <option value="review">Para revisar</option>
                         <option value="notfound">No encontrados</option>
                     </select>
+                    <label class="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-2 rounded-lg cursor-pointer select-none">
+                        <input type="checkbox" id="filterUnclassified" class="accent-indigo-600">
+                        Solo sin clasificar SEP
+                    </label>
                     <span id="filterCount" class="text-xs text-slate-500 self-center px-2"></span>
                 </div>
 
@@ -787,6 +791,7 @@
         // ============================================================
         const SESSION_STORAGE_KEY = 'validador_biblioteca_viva_session_v1';
 
+        let quotaWarningShown = false; // evita saturar de toasts si la cuota de localStorage sigue llena
         function saveSessionToStorage() {
             try {
                 const serializable = records.map(r => ({
@@ -798,8 +803,14 @@
                 }));
                 localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), records: serializable }));
             } catch (e) {
-                // localStorage puede fallar (modo privado, cuota llena) — no debe romper el flujo principal
+                // localStorage puede fallar (modo privado, cuota llena ~5-10MB) — nunca debe romper
+                // el flujo principal de búsqueda/exportación, solo se pierde el auto-guardado.
                 console.warn('No se pudo autoguardar la sesión:', e);
+                const isQuotaError = e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014;
+                if (isQuotaError && !quotaWarningShown) {
+                    quotaWarningShown = true;
+                    showToast('El lote es demasiado grande para el auto-guardado del navegador. Sigue funcionando todo lo demás, pero si cierras la pestaña a medias podrías perder el progreso — considera exportar seguido.', 'error');
+                }
             }
         }
 
@@ -948,6 +959,25 @@
             if (m.audited && !m.origin) m.origin = isRincon ? 'rincon' : 'general';
         }
 
+        // Fusiona campos de clasificación SEP en un registro existente, SOLO donde estén
+        // vacíos (igual que mergeFieldsIntoRecord, pero para el espacio de datos del Motor 4
+        // en vez del bibliográfico). La usa el Motor 3 cuando un archivo trae estas columnas.
+        function mergeManualFields(targetRecord, manualFieldsPartial) {
+            if (!targetRecord.manualFields) targetRecord.manualFields = {};
+            const filled = [];
+            ['estadoFisico', 'procedencia', 'grado', 'serie', 'generoSEP', 'categoriaSEP', 'observaciones'].forEach(f => {
+                if (!targetRecord.manualFields[f] && manualFieldsPartial[f]) {
+                    targetRecord.manualFields[f] = manualFieldsPartial[f];
+                    filled.push(f);
+                }
+            });
+            if (filled.length > 0) {
+                recomputeAudited(targetRecord);
+                renderRow(targetRecord);
+            }
+            return filled;
+        }
+
         // Construye las 6 <td> de clasificación de una fila. Categoría SEP depende de
         // Procedencia+Grado+Género de ESA MISMA fila, así que sus opciones se recalculan
         // cada vez que cualquiera de esos tres cambia.
@@ -979,13 +1009,20 @@
                 ? select('categoriaSEP', catOptions, m.categoriaSEP)
                 : `<span class="text-[10px] text-amber-500">Falta Procedencia/Género${isRincon ? '/Grado' : ''}</span>`;
 
+            // Relleno rápido: solo aparece una vez la fila queda completa, para copiar su
+            // clasificación a los libros siguientes que aún no tengan una (se detiene en el
+            // primero que ya esté clasificado, para no pisar trabajo ya hecho).
+            const fillDownBtn = m.audited
+                ? `<button type="button" class="fill-down-btn text-indigo-400 hover:text-indigo-700 text-xs shrink-0" data-record-id="${record.id}" title="Aplicar esta clasificación a los libros siguientes sin clasificar">⤓</button>`
+                : '';
+
             return `
                 <td class="p-1.5 align-middle bg-indigo-50/20">${select('procedencia', ['Rincón', 'General'], m.procedencia)}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('grado', GRADO_OPTIONS, m.grado) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${select('generoSEP', GENERO_OPTIONS, m.generoSEP)}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${catCell}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('serie', data.series, m.serie) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
-                <td class="p-1.5 align-middle bg-indigo-50/20">${select('estadoFisico', ESTADO_FISICO_OPTIONS, m.estadoFisico)}</td>
+                <td class="p-1.5 align-middle bg-indigo-50/20"><div class="flex items-center gap-1">${select('estadoFisico', ESTADO_FISICO_OPTIONS, m.estadoFisico)}${fillDownBtn}</div></td>
             `;
         }
 
@@ -1020,6 +1057,39 @@
             saveSessionToStorage();
         });
 
+        // Relleno rápido: copia la clasificación de una fila ya completa a los libros
+        // siguientes que sigan sin clasificar — se detiene en el primero que ya tenga una,
+        // para nunca sobrescribir trabajo que el maestro ya hizo.
+        function fillDownClassification(sourceRecord) {
+            const idx = records.indexOf(sourceRecord);
+            if (idx === -1) return;
+            const source = sourceRecord.manualFields;
+            let count = 0;
+            for (let i = idx + 1; i < records.length; i++) {
+                const r = records[i];
+                if (r.status !== 'valid' && r.status !== 'review') continue;
+                if (r.manualFields && r.manualFields.audited) break;
+                r.manualFields = Object.assign({}, source);
+                renderRow(r);
+                count++;
+            }
+            if (count > 0) {
+                logAudit('completado', `Clasificación de "${sourceRecord.apiData.title}" aplicada a ${count} libro(s) siguientes (relleno rápido) — se detuvo en el siguiente ya clasificado.`);
+                updateClassifyToolbar();
+                applyFilters();
+                saveSessionToStorage();
+                showToast(`Clasificación aplicada a ${count} libro(s) más.`, 'success');
+            } else {
+                showToast('No había libros sin clasificar justo debajo de este.', 'info');
+            }
+        }
+
+        recordsTable.addEventListener('click', (e) => {
+            const btn = e.target.closest('.fill-down-btn');
+            if (!btn) return;
+            const record = recordById.get(Number(btn.dataset.recordId));
+            if (record) fillDownClassification(record);
+        });
 
         // ============================================================
         // MOTOR 2 — Búsqueda directa por ISBN (identificador exacto: sin
@@ -1360,16 +1430,19 @@
         function applyFilters() {
             const query = normalizeText(filterInput.value);
             const status = filterStatus.value;
+            const onlyUnclassified = document.getElementById('filterUnclassified').checked;
             let visible = 0;
             records.forEach(rec => {
                 if (!rec.rowEl) return;
                 const matchesStatus = status === 'all' || rec.status === status;
                 const matchesQuery = !query || (rec.searchIndex && rec.searchIndex.includes(query));
-                const show = matchesStatus && matchesQuery;
+                const isClassifiable = rec.status === 'valid' || rec.status === 'review';
+                const matchesUnclassified = !onlyUnclassified || (isClassifiable && !(rec.manualFields && rec.manualFields.audited));
+                const show = matchesStatus && matchesQuery && matchesUnclassified;
                 rec.rowEl.dataset.hidden = show ? 'false' : 'true';
                 if (show) visible++;
             });
-            filterCount.textContent = (query || status !== 'all') ? `${visible} de ${records.length}` : '';
+            filterCount.textContent = (query || status !== 'all' || onlyUnclassified) ? `${visible} de ${records.length}` : '';
         }
 
         let filterDebounce = null;
@@ -1378,6 +1451,7 @@
             filterDebounce = setTimeout(applyFilters, 150);
         });
         filterStatus.addEventListener('change', applyFilters);
+        document.getElementById('filterUnclassified').addEventListener('change', applyFilters);
 
         // Mejora #2 — confirma cada corrección manual cuando el campo editable pierde el
         // foco. Delegado sobre recordsTable (las filas se reconstruyen constantemente vía
@@ -2317,6 +2391,8 @@
             // Inserción / fusión de registros (misma lógica que usan los Motores 1 y 2)
             insertNewRecord,
             mergeFieldsIntoRecord,
+            mergeManualFields,
+            recomputeAudited,
 
             // Utilidades de texto e ISBN
             normalizeText,
