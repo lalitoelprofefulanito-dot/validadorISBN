@@ -1196,7 +1196,12 @@
         async function fillMissingFields(record, signal) {
             const d = record.apiData;
             if (!d || !d.found) return;
-            let missing = ['authors', 'publisher', 'isbn', 'publishYear'].filter(f => !d[f]);
+            // OJO: 'coverUrl' está incluido a propósito. Un registro del Motor 3 puede llegar
+            // con autor/editorial/ISBN/año ya completos desde el archivo, pero SIN portada
+            // (coverUrl siempre nace en null ahí) — sin incluirlo aquí, esta función nunca
+            // llegaba a buscar en la web para esos registros, y la portada se quedaba vacía
+            // para siempre. Bug real, reportado con captura de pantalla.
+            let missing = ['authors', 'publisher', 'isbn', 'publishYear', 'coverUrl'].filter(f => !d[f]);
             if (missing.length === 0) return;
 
             const otherSources = Object.keys(TITLE_FETCHERS).filter(s => s !== d.source);
@@ -1218,7 +1223,11 @@
                 missing = missing.filter(field => {
                     if (candidate[field]) {
                         d[field] = candidate[field];
-                        logAudit('completado', `"${d.title}": campo "${FIELD_LABELS[field]}" completado automáticamente usando ${sourceName} (faltaba tras la búsqueda inicial en ${d.source}).`);
+                        if (field === 'coverUrl') {
+                            logAudit('completado', `"${d.title}": portada recuperada automáticamente usando ${sourceName}.`);
+                        } else {
+                            logAudit('completado', `"${d.title}": campo "${FIELD_LABELS[field]}" completado automáticamente usando ${sourceName} (faltaba tras la búsqueda inicial en ${d.source}).`);
+                        }
                         return false;
                     }
                     return true;
