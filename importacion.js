@@ -370,8 +370,13 @@
     // sigan con campos vacíos. Ningún ISBN ya completo vuelve a tocar la red.
     // ============================================================
     async function smartFetchMissingFields(touchedRecords) {
+        // OJO: 'coverUrl' está incluido a propósito, igual que en V.fillMissingFields. Si un
+        // registro llega con texto completo desde el archivo pero sin portada, este filtro
+        // decide si vale la pena buscar en la web — sin 'coverUrl' aquí, ese registro nunca
+        // llegaba siquiera a intentarlo, sin importar qué tan bien arreglada estuviera
+        // fillMissingFields por dentro. Bug real, encontrado en auditoría posterior al primero.
         const withGaps = touchedRecords.filter(r => r.apiData && r.apiData.found &&
-            (!r.apiData.authors || !r.apiData.publisher || !r.apiData.isbn || !r.apiData.publishYear));
+            (!r.apiData.authors || !r.apiData.publisher || !r.apiData.isbn || !r.apiData.publishYear || !r.apiData.coverUrl));
         if (withGaps.length === 0) return;
 
         V.setProcessingUI(true, `Consolidación completa. Buscando en las 3 fuentes solo lo que sigue faltando (${withGaps.length} registro(s))...`);
