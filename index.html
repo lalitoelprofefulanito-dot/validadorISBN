@@ -316,6 +316,9 @@
                                     <th class="p-4 font-semibold text-slate-700 w-[26%] text-xs uppercase tracking-wider">Libro Recuperado</th>
                                     <th class="p-4 font-semibold text-slate-700 w-[10%] text-xs uppercase tracking-wider">ISBN Oficial</th>
                                     <th class="p-4 font-semibold text-slate-700 text-center w-[14%] text-xs uppercase tracking-wider">Validación</th>
+                                    <th class="p-2 font-semibold text-indigo-700 text-center w-10 text-[10px] uppercase tracking-wider bg-indigo-50/50" title="Selecciona libros para aplicarles una clasificación en bloque, sin importar si están juntos en la tabla">
+                                        <input type="checkbox" id="selectAllVisibleCheckbox" class="accent-indigo-600" title="Seleccionar todos los visibles (respeta el filtro activo)">
+                                    </th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Procedencia</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[80px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Grado</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Género</th>
@@ -740,6 +743,12 @@
         const recordById = new Map(); // id numérico -> registro (usado por la edición inline, mejora #2)
         let recordIdCounter = 0;
 
+        // Motor 4 — Selección múltiple para clasificación masiva: ids de registros marcados
+        // con la casilla de la columna nueva. Vacío = modo "relleno rápido" de siempre
+        // (adyacentes, se detiene en el primero ya clasificado). Con algo marcado, el botón
+        // "⤓" aplica SOLO a esos ids, sin importar si están juntos en la tabla.
+        const selectedForBulk = new Set();
+
         function indexRecord(record) {
             if (!record.id) {
                 record.id = ++recordIdCounter;
@@ -1003,19 +1012,26 @@
             return filled;
         }
 
-        // Construye las 6 <td> de clasificación de una fila. Categoría SEP depende de
-        // Procedencia+Grado+Género de ESA MISMA fila, así que sus opciones se recalculan
-        // cada vez que cualquiera de esos tres cambia.
+        // Construye las 7 <td> de clasificación de una fila (checkbox de selección múltiple +
+        // las 6 columnas de siempre). Categoría SEP depende de Procedencia+Grado+Género de ESA
+        // MISMA fila, así que sus opciones se recalculan cada vez que cualquiera de esos tres cambia.
         function classifyCellsHtml(record) {
             if (record.status !== 'valid' && record.status !== 'review') {
-                return '<td colspan="6" class="text-center text-slate-300 text-xs">—</td>';
+                return '<td colspan="7" class="text-center text-slate-300 text-xs">—</td>';
             }
             if (!classifierDataCache) {
-                return '<td colspan="6" class="text-center text-slate-400 text-[11px] p-2">Cargando listas de clasificación de la plantilla...</td>';
+                return '<td colspan="7" class="text-center text-slate-400 text-[11px] p-2">Cargando listas de clasificación de la plantilla...</td>';
             }
             const data = classifierDataCache;
             const m = record.manualFields || {};
             const isRincon = m.procedencia === 'Rincón';
+
+            // Motor 4 — celda de selección: un libro ya clasificado (auditado) muestra un check
+            // gris de solo lectura en vez de casilla — nunca puede ser DESTINO de un relleno
+            // masivo, para no arriesgar sobrescribir una clasificación ya hecha a mano.
+            const bulkCell = m.audited
+                ? `<td class="p-1.5 align-middle bg-indigo-50/20 text-center text-emerald-500 text-xs" title="Ya clasificado — no se puede seleccionar como destino">✓</td>`
+                : `<td class="p-1.5 align-middle bg-indigo-50/20 text-center"><input type="checkbox" class="bulk-select-checkbox accent-indigo-600" data-record-id="${record.id}" ${selectedForBulk.has(record.id) ? 'checked' : ''}></td>`;
 
             function select(field, options, current) {
                 const opts = ['<option value="">—</option>'].concat(
@@ -1034,14 +1050,16 @@
                 ? select('categoriaSEP', catOptions, m.categoriaSEP)
                 : `<span class="text-[10px] text-amber-500">Falta Procedencia/Género${isRincon ? '/Grado' : ''}</span>`;
 
-            // Relleno rápido: solo aparece una vez la fila queda completa, para copiar su
-            // clasificación a los libros siguientes que aún no tengan una (se detiene en el
-            // primero que ya esté clasificado, para no pisar trabajo ya hecho).
+            // Relleno rápido / masivo: sin nada seleccionado en la columna de checkboxes, se
+            // comporta como siempre (aplica a los libros consecutivos siguientes, se detiene en
+            // el primero que ya esté clasificado). Con uno o más libros marcados, aplica SOLO a
+            // esos, estén juntos en la tabla o no — ver fillDownClassification.
             const fillDownBtn = m.audited
-                ? `<button type="button" class="fill-down-btn text-indigo-400 hover:text-indigo-700 text-xs shrink-0" data-record-id="${record.id}" title="Aplicar esta clasificación a los libros siguientes sin clasificar">⤓</button>`
+                ? `<button type="button" class="fill-down-btn text-indigo-400 hover:text-indigo-700 text-xs shrink-0" data-record-id="${record.id}" title="${selectedForBulk.size > 0 ? 'Aplicar esta clasificación a los libros marcados con casilla' : 'Aplicar esta clasificación a los libros siguientes sin clasificar'}">⤓</button>`
                 : '';
 
             return `
+                ${bulkCell}
                 <td class="p-1.5 align-middle bg-indigo-50/20">${select('procedencia', ['Rincón', 'General'], m.procedencia)}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('grado', GRADO_OPTIONS, m.grado) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${select('generoSEP', GENERO_OPTIONS, m.generoSEP)}</td>
@@ -1082,14 +1100,49 @@
             saveSessionToStorage();
         });
 
-        // Relleno rápido: copia la clasificación de una fila ya completa a los libros
-        // siguientes que sigan sin clasificar — se detiene en el primero que ya tenga una,
-        // para nunca sobrescribir trabajo que el maestro ya hizo.
+        // Relleno rápido / masivo (Motor 4): sin nada marcado en la columna de checkboxes,
+        // se comporta como siempre — copia la clasificación a los libros consecutivos
+        // siguientes, deteniéndose en el primero que ya tenga una (nunca sobrescribe trabajo
+        // ya hecho). Con uno o más libros marcados, aplica SOLO a esos — estén juntos en la
+        // tabla o no — y también respeta la misma regla de no tocar los ya clasificados.
         function fillDownClassification(sourceRecord) {
             const idx = records.indexOf(sourceRecord);
             if (idx === -1) return;
             const source = sourceRecord.manualFields;
             let count = 0;
+
+            if (selectedForBulk.size > 0) {
+                // Modo selección: se toma un snapshot de los ids antes de aplicar, porque
+                // aplicar clasificación dispara renderRow (recomputeAudited puede volverlos
+                // "audited" y classifyCellsHtml ya no les pintaría checkbox) — iterar
+                // directamente sobre el Set mientras potencialmente se modifica es frágil.
+                const targetIds = Array.from(selectedForBulk);
+                targetIds.forEach(id => {
+                    const r = recordById.get(id);
+                    if (!r) return; // id obsoleto (registro eliminado por "Limpiar", etc.)
+                    if (r.status !== 'valid' && r.status !== 'review') return; // ya no es clasificable
+                    if (r.manualFields && r.manualFields.audited) return; // ya clasificado — nunca se pisa
+                    if (r === sourceRecord) return; // el origen no se aplica sobre sí mismo
+                    r.manualFields = Object.assign({}, source);
+                    renderRow(r);
+                    count++;
+                });
+                selectedForBulk.clear();
+                if (count > 0) {
+                    logAudit('completado', `Clasificación de "${sourceRecord.apiData.title}" aplicada a ${count} libro(s) marcados con casilla (selección múltiple, Motor 4).`);
+                    updateClassifyToolbar();
+                    applyFilters();
+                    saveSessionToStorage();
+                    showToast(`Clasificación aplicada a ${count} libro(s) marcados.`, 'success');
+                } else {
+                    updateClassifyToolbar();
+                    applyFilters();
+                    showToast('Ninguno de los libros marcados seguía disponible para clasificar (o el propio origen era el único marcado).', 'info');
+                }
+                return;
+            }
+
+            // Modo original: recorrido secuencial desde la fila fuente hacia abajo.
             for (let i = idx + 1; i < records.length; i++) {
                 const r = records[i];
                 if (r.status !== 'valid' && r.status !== 'review') continue;
@@ -1114,6 +1167,31 @@
             if (!btn) return;
             const record = recordById.get(Number(btn.dataset.recordId));
             if (record) fillDownClassification(record);
+        });
+
+        // Motor 4 — casilla individual de selección: agrega/quita el id del registro en
+        // selectedForBulk. Delegado sobre recordsTable (las filas se reconstruyen constantemente
+        // vía innerHTML en renderRow, un listener por checkbox se perdería en cada re-render).
+        recordsTable.addEventListener('change', (e) => {
+            const cb = e.target.closest('.bulk-select-checkbox');
+            if (!cb) return;
+            const id = Number(cb.dataset.recordId);
+            if (cb.checked) selectedForBulk.add(id); else selectedForBulk.delete(id);
+        });
+
+        // Motor 4 — "seleccionar todos los visibles": respeta cualquier filtro activo (lee
+        // rec.rowEl.dataset.hidden, el mismo mecanismo que usa applyFilters) y solo marca
+        // registros clasificables y aún no auditados — un libro ya clasificado no tiene
+        // checkbox que marcar (ver classifyCellsHtml), así que jamás termina seleccionado.
+        document.getElementById('selectAllVisibleCheckbox').addEventListener('change', (e) => {
+            const check = e.target.checked;
+            records.forEach(r => {
+                if (!r.rowEl || r.rowEl.dataset.hidden === 'true') return;
+                if (r.status !== 'valid' && r.status !== 'review') return;
+                if (r.manualFields && r.manualFields.audited) return;
+                if (check) selectedForBulk.add(r.id); else selectedForBulk.delete(r.id);
+                renderRow(r);
+            });
         });
 
         // ============================================================
@@ -1538,7 +1616,7 @@
                         <span class="text-sm">Buscando en OpenLibrary / Google Books / Internet Archive...</span>
                     </div>
                 </td>
-                <td class="p-4 align-middle text-center" colspan="7">
+                <td class="p-4 align-middle text-center" colspan="8">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span> En cola
                     </span>
@@ -1999,6 +2077,8 @@
             isbnIndex.clear();
             titleIndex.clear();
             recordById.clear();
+            selectedForBulk.clear();
+            document.getElementById('selectAllVisibleCheckbox').checked = false;
             clearSavedSession(); // higiene: una limpieza intencional no debe poder "recuperarse" al recargar
             recordsTable.querySelectorAll('tr:not(#emptyState)').forEach(row => row.remove());
             emptyState.style.display = 'table-row';
