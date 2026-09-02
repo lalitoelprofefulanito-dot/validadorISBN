@@ -212,6 +212,20 @@
                     </button>
                 </div>
 
+                <!-- Motor 5: Clasificación SEP desde catálogo histórico -->
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
+                    <label class="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                        <span class="bg-amber-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">MOTOR 5</span>
+                        Clasificación SEP desde catálogo histórico
+                    </label>
+                    <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">Compara los títulos ya validados contra el Catálogo Histórico Consolidado de Libros del Rincón y rellena Procedencia, Grado, Género, Categoría y Serie cuando encuentra una coincidencia confiable. Las coincidencias dudosas quedan como sugerencia en la Bitácora, sin aplicarse solas.</p>
+                    <button type="button" id="catalogoHistoricoBtn" disabled
+                        class="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                        Buscar clasificación en catálogo histórico
+                    </button>
+                    <p id="catalogoHistoricoStatus" class="text-[11px] text-slate-500 mt-2">Cargando catálogo histórico en segundo plano...</p>
+                </div>
+
                 <!-- Stats Grid -->
                 <div class="grid grid-cols-2 gap-3 mt-auto">
                     <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center shadow-sm">
@@ -286,7 +300,7 @@
                         <span id="classifyStatusText">Clasificación SEP</span>
                     </span>
                     <button type="button" id="goToClassifyBtn" class="text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-md transition-all shadow-sm">Ir a clasificar →</button>
-                    <span class="text-[11px] text-indigo-600">(7 columnas al final de la tabla — Procedencia, Grado, Género, Categoría, Serie, Estado físico, Copias)</span>
+                    <span class="text-[11px] text-indigo-600">(6 columnas al final de la tabla — Procedencia, Grado, Género, Categoría, Serie, Estado físico)</span>
                 </div>
 
                 <!-- Filter Toolbar -->
@@ -299,11 +313,10 @@
                         <option value="review">Para revisar</option>
                         <option value="notfound">No encontrados</option>
                     </select>
-                    <select id="filterClassify" class="px-3 py-2 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-indigo-50 text-indigo-700">
-                        <option value="all">Clasificación SEP: todos</option>
-                        <option value="classified">Solo clasificados SEP</option>
-                        <option value="unclassified">Solo sin clasificar SEP</option>
-                    </select>
+                    <label class="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-2 rounded-lg cursor-pointer select-none">
+                        <input type="checkbox" id="filterUnclassified" class="accent-indigo-600">
+                        Solo sin clasificar SEP
+                    </label>
                     <span id="filterCount" class="text-xs text-slate-500 self-center px-2"></span>
                 </div>
 
@@ -316,16 +329,12 @@
                                     <th class="p-4 font-semibold text-slate-700 w-[26%] text-xs uppercase tracking-wider">Libro Recuperado</th>
                                     <th class="p-4 font-semibold text-slate-700 w-[10%] text-xs uppercase tracking-wider">ISBN Oficial</th>
                                     <th class="p-4 font-semibold text-slate-700 text-center w-[14%] text-xs uppercase tracking-wider">Validación</th>
-                                    <th class="p-2 font-semibold text-indigo-700 text-center w-10 text-[10px] uppercase tracking-wider bg-indigo-50/50" title="Selecciona libros para aplicarles una clasificación en bloque, sin importar si están juntos en la tabla">
-                                        <input type="checkbox" id="selectAllVisibleCheckbox" class="accent-indigo-600" title="Seleccionar todos los visibles (respeta el filtro activo)">
-                                    </th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Procedencia</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[80px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Grado</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Género</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[180px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Categoría SEP</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[130px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Serie</th>
                                     <th class="p-2 font-semibold text-indigo-700 text-center min-w-[100px] text-[10px] uppercase tracking-wider bg-indigo-50/50">Estado Físico</th>
-                                    <th class="p-2 font-semibold text-indigo-700 text-center min-w-[80px] text-[10px] uppercase tracking-wider bg-indigo-50/50" title="Número de ejemplares físicos de este título. Se puede leer de un documento importado (Motor 3) o capturar aquí a mano.">Copias</th>
                                 </tr>
                             </thead>
                             <tbody id="recordsTable" class="divide-y divide-slate-100">
@@ -744,12 +753,6 @@
         const recordById = new Map(); // id numérico -> registro (usado por la edición inline, mejora #2)
         let recordIdCounter = 0;
 
-        // Motor 4 — Selección múltiple para clasificación masiva: ids de registros marcados
-        // con la casilla de la columna nueva. Vacío = modo "relleno rápido" de siempre
-        // (adyacentes, se detiene en el primero ya clasificado). Con algo marcado, el botón
-        // "⤓" aplica SOLO a esos ids, sin importar si están juntos en la tabla.
-        const selectedForBulk = new Set();
-
         function indexRecord(record) {
             if (!record.id) {
                 record.id = ++recordIdCounter;
@@ -967,7 +970,8 @@
         // hace algo: activa el filtro de pendientes, desplaza la tabla hasta las 6 columnas
         // (que viven al final, fuera de vista sin scroll horizontal) y salta a la primera fila.
         document.getElementById('goToClassifyBtn').addEventListener('click', () => {
-            document.getElementById('filterClassify').value = 'unclassified';
+            const filterCheckbox = document.getElementById('filterUnclassified');
+            filterCheckbox.checked = true;
             applyFilters();
 
             const container = document.getElementById('tableScrollContainer');
@@ -1000,7 +1004,7 @@
         function mergeManualFields(targetRecord, manualFieldsPartial) {
             if (!targetRecord.manualFields) targetRecord.manualFields = {};
             const filled = [];
-            ['estadoFisico', 'copias', 'procedencia', 'grado', 'serie', 'generoSEP', 'categoriaSEP', 'observaciones'].forEach(f => {
+            ['estadoFisico', 'procedencia', 'grado', 'serie', 'generoSEP', 'categoriaSEP', 'observaciones'].forEach(f => {
                 if (!targetRecord.manualFields[f] && manualFieldsPartial[f]) {
                     targetRecord.manualFields[f] = manualFieldsPartial[f];
                     filled.push(f);
@@ -1013,26 +1017,19 @@
             return filled;
         }
 
-        // Construye las 8 <td> de clasificación de una fila (checkbox de selección múltiple +
-        // las 6 columnas de siempre + Copias). Categoría SEP depende de Procedencia+Grado+Género
-        // de ESA MISMA fila, así que sus opciones se recalculan cada vez que cualquiera cambia.
+        // Construye las 6 <td> de clasificación de una fila. Categoría SEP depende de
+        // Procedencia+Grado+Género de ESA MISMA fila, así que sus opciones se recalculan
+        // cada vez que cualquiera de esos tres cambia.
         function classifyCellsHtml(record) {
             if (record.status !== 'valid' && record.status !== 'review') {
-                return '<td colspan="8" class="text-center text-slate-300 text-xs">—</td>';
+                return '<td colspan="6" class="text-center text-slate-300 text-xs">—</td>';
             }
             if (!classifierDataCache) {
-                return '<td colspan="8" class="text-center text-slate-400 text-[11px] p-2">Cargando listas de clasificación de la plantilla...</td>';
+                return '<td colspan="6" class="text-center text-slate-400 text-[11px] p-2">Cargando listas de clasificación de la plantilla...</td>';
             }
             const data = classifierDataCache;
             const m = record.manualFields || {};
             const isRincon = m.procedencia === 'Rincón';
-
-            // Motor 4 — celda de selección: un libro ya clasificado (auditado) muestra un check
-            // gris de solo lectura en vez de casilla — nunca puede ser DESTINO de un relleno
-            // masivo, para no arriesgar sobrescribir una clasificación ya hecha a mano.
-            const bulkCell = m.audited
-                ? `<td class="p-1.5 align-middle bg-indigo-50/20 text-center text-emerald-500 text-xs" title="Ya clasificado — no se puede seleccionar como destino">✓</td>`
-                : `<td class="p-1.5 align-middle bg-indigo-50/20 text-center"><input type="checkbox" class="bulk-select-checkbox accent-indigo-600" data-record-id="${record.id}" ${selectedForBulk.has(record.id) ? 'checked' : ''}></td>`;
 
             function select(field, options, current) {
                 const opts = ['<option value="">—</option>'].concat(
@@ -1051,42 +1048,29 @@
                 ? select('categoriaSEP', catOptions, m.categoriaSEP)
                 : `<span class="text-[10px] text-amber-500">Falta Procedencia/Género${isRincon ? '/Grado' : ''}</span>`;
 
-            // Relleno rápido / masivo: sin nada seleccionado en la columna de checkboxes, se
-            // comporta como siempre (aplica a los libros consecutivos siguientes, se detiene en
-            // el primero que ya esté clasificado). Con uno o más libros marcados, aplica SOLO a
-            // esos, estén juntos en la tabla o no — ver fillDownClassification.
+            // Relleno rápido: solo aparece una vez la fila queda completa, para copiar su
+            // clasificación a los libros siguientes que aún no tengan una (se detiene en el
+            // primero que ya esté clasificado, para no pisar trabajo ya hecho).
             const fillDownBtn = m.audited
-                ? `<button type="button" class="fill-down-btn text-indigo-400 hover:text-indigo-700 text-xs shrink-0" data-record-id="${record.id}" title="${selectedForBulk.size > 0 ? 'Aplicar esta clasificación a los libros marcados con casilla' : 'Aplicar esta clasificación a los libros siguientes sin clasificar'}">⤓</button>`
+                ? `<button type="button" class="fill-down-btn text-indigo-400 hover:text-indigo-700 text-xs shrink-0" data-record-id="${record.id}" title="Aplicar esta clasificación a los libros siguientes sin clasificar">⤓</button>`
                 : '';
 
-            // Copias: campo libre (no forma parte de las 5 columnas que exige el Instructivo
-            // para marcar un libro como "auditado"), así que nunca bloquea la exportación. Si
-            // vino de un documento importado, o de la agrupación de títulos repetidos al pegar
-            // la lista (ver form.addEventListener('submit')), ya trae un valor sugerido — el
-            // maestro decide si lo confirma o lo corrige.
-            const copiasCell = `<input type="number" min="1" step="1" class="cf-input text-[11px] border border-indigo-200 rounded px-1 py-1 w-14 text-center bg-white focus:ring-1 focus:ring-indigo-500 outline-none" data-cf-field="copias" placeholder="1" value="${m.copias ? escapeHtml(String(m.copias)) : ''}" title="Número de ejemplares físicos de este título">`;
-
             return `
-                ${bulkCell}
                 <td class="p-1.5 align-middle bg-indigo-50/20">${select('procedencia', ['Rincón', 'General'], m.procedencia)}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('grado', GRADO_OPTIONS, m.grado) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${select('generoSEP', GENERO_OPTIONS, m.generoSEP)}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${catCell}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20">${isRincon ? select('serie', data.series, m.serie) : '<span class="text-[10px] text-slate-300">—</span>'}</td>
                 <td class="p-1.5 align-middle bg-indigo-50/20"><div class="flex items-center gap-1">${select('estadoFisico', ESTADO_FISICO_OPTIONS, m.estadoFisico)}${fillDownBtn}</div></td>
-                <td class="p-1.5 align-middle bg-indigo-50/20 text-center">${copiasCell}</td>
             `;
         }
 
-        // Delegado sobre recordsTable: un solo listener cubre las 7 columnas de TODAS las
-        // filas (6 <select> + el input numérico de Copias), incluidas las que se agreguen
-        // después (las filas se reconstruyen vía innerHTML constantemente, un listener por
-        // celda se perdería en cada re-render).
+        // Delegado sobre recordsTable: un solo listener cubre las 6 columnas de TODAS las
+        // filas, incluidas las que se agreguen después (las filas se reconstruyen vía
+        // innerHTML constantemente, un listener por celda se perdería en cada re-render).
         recordsTable.addEventListener('change', (e) => {
             const target = e.target;
-            const isSelect = target.classList && target.classList.contains('cf-select');
-            const isInput = target.classList && target.classList.contains('cf-input');
-            if (!isSelect && !isInput) return;
+            if (!target.classList || !target.classList.contains('cf-select')) return;
             const tr = target.closest('tr');
             if (!tr) return;
             const record = recordById.get(Number(tr.dataset.recordId));
@@ -1095,21 +1079,13 @@
             const field = target.dataset.cfField;
             if (!record.manualFields) record.manualFields = {};
             const wasAudited = !!record.manualFields.audited;
-
-            if (isInput) {
-                // Copias: entero positivo o nada (no bloquea "audited" — es informativo, no
-                // parte de las 5 columnas que exige el Instructivo).
-                const n = parseInt(target.value, 10);
-                record.manualFields.copias = (Number.isFinite(n) && n >= 1) ? n : null;
-            } else {
-                record.manualFields[field] = target.value || null;
-                // cambiar Procedencia invalida Grado/Categoría/Serie previamente elegidos si ya no aplican
-                if (field === 'procedencia') {
-                    if (target.value !== 'Rincón') { record.manualFields.grado = null; record.manualFields.serie = null; }
-                    record.manualFields.categoriaSEP = null;
-                }
-                if ((field === 'grado' || field === 'generoSEP')) record.manualFields.categoriaSEP = null;
+            record.manualFields[field] = target.value || null;
+            // cambiar Procedencia invalida Grado/Categoría/Serie previamente elegidos si ya no aplican
+            if (field === 'procedencia') {
+                if (target.value !== 'Rincón') { record.manualFields.grado = null; record.manualFields.serie = null; }
+                record.manualFields.categoriaSEP = null;
             }
+            if ((field === 'grado' || field === 'generoSEP')) record.manualFields.categoriaSEP = null;
 
             recomputeAudited(record);
             if (wasAudited !== record.manualFields.audited) {
@@ -1120,71 +1096,24 @@
             saveSessionToStorage();
         });
 
-        // Relleno rápido / masivo (Motor 4): sin nada marcado en la columna de checkboxes,
-        // se comporta como siempre — copia la clasificación a los libros consecutivos
-        // siguientes, deteniéndose en el primero que ya tenga una (nunca sobrescribe trabajo
-        // ya hecho). Con uno o más libros marcados, aplica SOLO a esos — estén juntos en la
-        // tabla o no — y también respeta la misma regla de no tocar los ya clasificados.
+        // Relleno rápido: copia la clasificación de una fila ya completa a los libros
+        // siguientes que sigan sin clasificar — se detiene en el primero que ya tenga una,
+        // para nunca sobrescribir trabajo que el maestro ya hizo.
         function fillDownClassification(sourceRecord) {
             const idx = records.indexOf(sourceRecord);
             if (idx === -1) return;
             const source = sourceRecord.manualFields;
             let count = 0;
-
-            // Copias es un dato propio de cada título (cuántos ejemplares físicos tiene ESE
-            // libro) — no tiene sentido copiar la cantidad del libro fuente a los demás, así
-            // que se excluye del relleno y se conserva la que el libro destino ya tuviera
-            // (por ejemplo, sugerida al importar un archivo o al detectar títulos repetidos
-            // en la lista pegada).
-            const sourceWithoutCopias = Object.assign({}, source);
-            delete sourceWithoutCopias.copias;
-            function applyClassificationExceptCopias(target) {
-                const keepCopias = target.manualFields && target.manualFields.copias;
-                target.manualFields = Object.assign({}, sourceWithoutCopias, keepCopias ? { copias: keepCopias } : {});
-            }
-
-            if (selectedForBulk.size > 0) {
-                // Modo selección: se toma un snapshot de los ids antes de aplicar, porque
-                // aplicar clasificación dispara renderRow (recomputeAudited puede volverlos
-                // "audited" y classifyCellsHtml ya no les pintaría checkbox) — iterar
-                // directamente sobre el Set mientras potencialmente se modifica es frágil.
-                const targetIds = Array.from(selectedForBulk);
-                targetIds.forEach(id => {
-                    const r = recordById.get(id);
-                    if (!r) return; // id obsoleto (registro eliminado por "Limpiar", etc.)
-                    if (r.status !== 'valid' && r.status !== 'review') return; // ya no es clasificable
-                    if (r.manualFields && r.manualFields.audited) return; // ya clasificado — nunca se pisa
-                    if (r === sourceRecord) return; // el origen no se aplica sobre sí mismo
-                    applyClassificationExceptCopias(r);
-                    renderRow(r);
-                    count++;
-                });
-                selectedForBulk.clear();
-                if (count > 0) {
-                    logAudit('completado', `Clasificación de "${sourceRecord.apiData.title}" aplicada a ${count} libro(s) marcados con casilla (selección múltiple, Motor 4). La cantidad de Copias de cada libro no se tocó.`);
-                    updateClassifyToolbar();
-                    applyFilters();
-                    saveSessionToStorage();
-                    showToast(`Clasificación aplicada a ${count} libro(s) marcados.`, 'success');
-                } else {
-                    updateClassifyToolbar();
-                    applyFilters();
-                    showToast('Ninguno de los libros marcados seguía disponible para clasificar (o el propio origen era el único marcado).', 'info');
-                }
-                return;
-            }
-
-            // Modo original: recorrido secuencial desde la fila fuente hacia abajo.
             for (let i = idx + 1; i < records.length; i++) {
                 const r = records[i];
                 if (r.status !== 'valid' && r.status !== 'review') continue;
                 if (r.manualFields && r.manualFields.audited) break;
-                applyClassificationExceptCopias(r);
+                r.manualFields = Object.assign({}, source);
                 renderRow(r);
                 count++;
             }
             if (count > 0) {
-                logAudit('completado', `Clasificación de "${sourceRecord.apiData.title}" aplicada a ${count} libro(s) siguientes (relleno rápido) — se detuvo en el siguiente ya clasificado. La cantidad de Copias de cada libro no se tocó.`);
+                logAudit('completado', `Clasificación de "${sourceRecord.apiData.title}" aplicada a ${count} libro(s) siguientes (relleno rápido) — se detuvo en el siguiente ya clasificado.`);
                 updateClassifyToolbar();
                 applyFilters();
                 saveSessionToStorage();
@@ -1199,31 +1128,6 @@
             if (!btn) return;
             const record = recordById.get(Number(btn.dataset.recordId));
             if (record) fillDownClassification(record);
-        });
-
-        // Motor 4 — casilla individual de selección: agrega/quita el id del registro en
-        // selectedForBulk. Delegado sobre recordsTable (las filas se reconstruyen constantemente
-        // vía innerHTML en renderRow, un listener por checkbox se perdería en cada re-render).
-        recordsTable.addEventListener('change', (e) => {
-            const cb = e.target.closest('.bulk-select-checkbox');
-            if (!cb) return;
-            const id = Number(cb.dataset.recordId);
-            if (cb.checked) selectedForBulk.add(id); else selectedForBulk.delete(id);
-        });
-
-        // Motor 4 — "seleccionar todos los visibles": respeta cualquier filtro activo (lee
-        // rec.rowEl.dataset.hidden, el mismo mecanismo que usa applyFilters) y solo marca
-        // registros clasificables y aún no auditados — un libro ya clasificado no tiene
-        // checkbox que marcar (ver classifyCellsHtml), así que jamás termina seleccionado.
-        document.getElementById('selectAllVisibleCheckbox').addEventListener('change', (e) => {
-            const check = e.target.checked;
-            records.forEach(r => {
-                if (!r.rowEl || r.rowEl.dataset.hidden === 'true') return;
-                if (r.status !== 'valid' && r.status !== 'review') return;
-                if (r.manualFields && r.manualFields.audited) return;
-                if (check) selectedForBulk.add(r.id); else selectedForBulk.delete(r.id);
-                renderRow(r);
-            });
         });
 
         // ============================================================
@@ -1326,7 +1230,7 @@
             'Google Books': fetchGoogleBooks,
             'Internet Archive': fetchInternetArchive
         };
-        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año', coverUrl: 'Portada' };
+        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año' };
 
         async function fillMissingFields(record, signal) {
             const d = record.apiData;
@@ -1378,7 +1282,7 @@
         async function enrichRecordFromIsbn(targetRecord, normIsbn, signal, precomputedCandidate) {
             const candidate = precomputedCandidate || await lookupByISBN(normIsbn, signal);
             if (!candidate) return [];
-            return mergeFieldsIntoRecord(targetRecord, { authors: candidate.authors, publisher: candidate.publisher, publishYear: candidate.publishYear, isbn: normIsbn, coverUrl: candidate.coverUrl });
+            return mergeFieldsIntoRecord(targetRecord, { authors: candidate.authors, publisher: candidate.publisher, publishYear: candidate.publishYear, isbn: normIsbn });
         }
 
         // Inserta un registro NUEVO (fila + índices + render). Genérico: lo usan tanto el
@@ -1410,14 +1314,7 @@
         function mergeFieldsIntoRecord(targetRecord, sourceFields) {
             const d = targetRecord.apiData;
             const filled = [];
-            // BUG CORREGIDO (auditoría): 'coverUrl' faltaba en esta lista. Era la misma
-            // omisión que ya se había detectado y arreglado en fillMissingFields (Motor 1) —
-            // pero nunca se replicó aquí, así que el Motor 2 (ISBN) y el Motor 3 (archivos,
-            // vía integrateConsolidatedRow) fusionaban autor/editorial/año/ISBN en un registro
-            // ya existente pero descartaban en silencio una portada válida que sí traía la
-            // fuente consultada, dejando el libro sin imagen para siempre sin ningún reintento
-            // posterior que lo detectara.
-            ['authors', 'publisher', 'publishYear', 'isbn', 'coverUrl'].forEach(field => {
+            ['authors', 'publisher', 'publishYear', 'isbn'].forEach(field => {
                 if (!d[field] && sourceFields[field]) {
                     d[field] = sourceFields[field];
                     filled.push(FIELD_LABELS[field]);
@@ -1581,22 +1478,19 @@
         function applyFilters() {
             const query = normalizeText(filterInput.value);
             const status = filterStatus.value;
-            const classifyFilter = document.getElementById('filterClassify').value; // 'all' | 'classified' | 'unclassified'
+            const onlyUnclassified = document.getElementById('filterUnclassified').checked;
             let visible = 0;
             records.forEach(rec => {
                 if (!rec.rowEl) return;
                 const matchesStatus = status === 'all' || rec.status === status;
                 const matchesQuery = !query || (rec.searchIndex && rec.searchIndex.includes(query));
                 const isClassifiable = rec.status === 'valid' || rec.status === 'review';
-                const isAudited = isClassifiable && !!(rec.manualFields && rec.manualFields.audited);
-                const matchesClassify = classifyFilter === 'all'
-                    || (classifyFilter === 'classified' && isAudited)
-                    || (classifyFilter === 'unclassified' && isClassifiable && !isAudited);
-                const show = matchesStatus && matchesQuery && matchesClassify;
+                const matchesUnclassified = !onlyUnclassified || (isClassifiable && !(rec.manualFields && rec.manualFields.audited));
+                const show = matchesStatus && matchesQuery && matchesUnclassified;
                 rec.rowEl.dataset.hidden = show ? 'false' : 'true';
                 if (show) visible++;
             });
-            filterCount.textContent = (query || status !== 'all' || classifyFilter !== 'all') ? `${visible} de ${records.length}` : '';
+            filterCount.textContent = (query || status !== 'all' || onlyUnclassified) ? `${visible} de ${records.length}` : '';
         }
 
         let filterDebounce = null;
@@ -1605,7 +1499,7 @@
             filterDebounce = setTimeout(applyFilters, 150);
         });
         filterStatus.addEventListener('change', applyFilters);
-        document.getElementById('filterClassify').addEventListener('change', applyFilters);
+        document.getElementById('filterUnclassified').addEventListener('change', applyFilters);
 
         // Mejora #2 — confirma cada corrección manual cuando el campo editable pierde el
         // foco. Delegado sobre recordsTable (las filas se reconstruyen constantemente vía
@@ -1648,7 +1542,7 @@
                         <span class="text-sm">Buscando en OpenLibrary / Google Books / Internet Archive...</span>
                     </div>
                 </td>
-                <td class="p-4 align-middle text-center" colspan="9">
+                <td class="p-4 align-middle text-center" colspan="7">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span> En cola
                     </span>
@@ -1695,21 +1589,6 @@
             return `<span class="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">Motor 1 · Título</span>`;
         }
 
-        // ============================================================
-        // Enlaces de verificación manual en Google (web e Imágenes). Google no permite
-        // incrustar sus resultados dentro de un iframe (lo bloquea con cabeceras propias
-        // de seguridad, X-Frame-Options/CSP) y no existe una API gratuita/sin límite para
-        // consultarlo mil veces en automático — por eso esto abre una pestaña nueva con la
-        // búsqueda ya armada, en vez de prometer una validación automática que se rompería
-        // sola apenas se agotara la cuota gratuita (100 consultas/día) de la API oficial.
-        // ============================================================
-        function googleImagesSearchUrl(title) {
-            return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(title + ' portada libro')}`;
-        }
-        function googleWebSearchUrl(query) {
-            return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-        }
-
         function renderRow(record) {
             const tr = record.rowEl;
             tr.dataset.recordId = record.id; // vínculo estable para la edición inline (mejora #2)
@@ -1728,20 +1607,9 @@
                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Revisar (${pct}%)
                        </span>`;
 
-                const coverImgOrPlaceholder = apiData.coverUrl
+                const coverHtml = apiData.coverUrl
                     ? `<img src="${apiData.coverUrl}" loading="lazy" class="w-12 h-16 object-cover rounded shadow border border-slate-200 cover-image" alt="Portada" onerror="this.outerHTML='<div class=\\'w-12 h-16 bg-slate-100 border border-slate-200 rounded flex items-center justify-center\\'><span class=\\'text-[8px] text-slate-400\\'>Sin Img</span></div>'">`
                     : `<div class="w-12 h-16 bg-slate-100 border border-slate-200 rounded shadow-sm flex items-center justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg></div>`;
-
-                // Segunda opción de búsqueda de portada: un enlace real a Google Imágenes que
-                // abre en pestaña nueva (ver nota arriba de por qué no está incrustado).
-                // Aparece SIEMPRE, incluso si ya hay portada — sirve para cotejarla a simple vista.
-                const coverHtml = `
-                    <div class="relative inline-block">
-                        ${coverImgOrPlaceholder}
-                        <a href="${googleImagesSearchUrl(apiData.title)}" target="_blank" rel="noopener noreferrer"
-                           class="absolute -bottom-1.5 -right-1.5 w-5 h-5 flex items-center justify-center bg-white border border-slate-300 rounded-full shadow text-[10px] hover:bg-indigo-50 hover:border-indigo-300"
-                           title="Buscar/cotejar portada en Google Imágenes (pestaña nueva)">🔍</a>
-                    </div>`;
 
                 // Mejora #2: las filas "Revisar" se vuelven editables inline; las "Validado" quedan
                 // de solo lectura (ya pasaron el umbral de confianza, no se tocan por accidente).
@@ -1770,7 +1638,6 @@
                                 ${yearHtml}
                                 ${sourceBadge(apiData.source)}
                                 ${originBadge(record.origin)}
-                                <a href="${googleWebSearchUrl(`"${apiData.title}" libro autor editorial isbn`)}" target="_blank" rel="noopener noreferrer" class="text-sky-600 hover:underline inline-flex items-center gap-0.5" title="Cotejar autor/editorial/ISBN en una búsqueda de Google (pestaña nueva) — útil para lo marcado 'no verificado'">🔎 Verificar en Google</a>
                                 ${editable ? '<span class="text-[10px] text-amber-600 font-semibold">✎ Editable — corrige y haz clic fuera para guardar</span>' : ''}
                             </div>
                         </div>
@@ -1790,9 +1657,7 @@
                     : `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200">
                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> No Encontrado
                        </span>`;
-                bookUI = `<span class="text-slate-400 text-sm italic">${isNetworkError ? 'No se pudo consultar ninguna de las 3 fuentes (OpenLibrary, Google Books, Internet Archive).' : 'Sin coincidencias fiables en OpenLibrary, Google Books ni Internet Archive.'}</span>
-                    <a href="${googleWebSearchUrl(record.originalTitle + ' libro autor editorial isbn')}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-sky-600 hover:underline inline-flex items-center gap-0.5 ml-2" title="Buscar este título en Google (pestaña nueva)">🔎 Buscar en Google</a>
-                    <a href="${googleImagesSearchUrl(record.originalTitle)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-sky-600 hover:underline inline-flex items-center gap-0.5 ml-2" title="Buscar portada en Google Imágenes (pestaña nueva)">🔍 Buscar portada</a>`;
+                bookUI = `<span class="text-slate-400 text-sm italic">${isNetworkError ? 'No se pudo consultar ninguna de las 3 fuentes (OpenLibrary, Google Books, Internet Archive).' : 'Sin coincidencias fiables en OpenLibrary, Google Books ni Internet Archive.'}</span>`;
                 isbnUI = `<span class="text-slate-300">-</span>`;
             }
 
@@ -1859,7 +1724,6 @@
                     progressBar.style.width = `${percent}%`;
                     progressText.textContent = `${completed} de ${total} (${percent}%)`;
                     updateStats();
-                    applyFilters();
 
                     // Mejora #1 — autoguardado cada 10 filas procesadas
                     if (completed % 10 === 0) saveSessionToStorage();
@@ -1914,19 +1778,7 @@
                     rec.rowEl.innerHTML = freshRow.innerHTML;
                 });
             } else {
-                // Cada elemento puede ser un string simple (título) o un objeto
-                // { title, copias } cuando el envío del formulario detectó que ese título
-                // se repitió varias veces en la lista pegada (ver form 'submit' más abajo)
-                // y quiere dejar ya sugerida la cantidad en la columna "Copias".
-                batch = titlesOrRecords.map(t => {
-                    const isObj = t && typeof t === 'object';
-                    const title = isObj ? t.title : t;
-                    const suggestedCopias = isObj ? t.copias : null;
-                    return {
-                        originalTitle: title, apiData: null, status: 'pending', rowEl: null, searchIndex: '',
-                        manualFields: suggestedCopias ? { copias: suggestedCopias } : null
-                    };
-                });
+                batch = titlesOrRecords.map(t => ({ originalTitle: t, apiData: null, status: 'pending', rowEl: null, searchIndex: '' }));
                 const fragment = document.createDocumentFragment();
                 batch.forEach(rec => {
                     const tr = createPendingRow(rec);
@@ -1942,11 +1794,6 @@
                 records = batch.concat(records);
                 emptyState.style.display = 'none';
             }
-
-            // Las filas recién creadas (o reseteadas a 'pending' en un reintento) todavía no
-            // tienen dataset.hidden evaluado contra el filtro que ya esté activo — sin esto,
-            // aparecerían visibles sin importar el filtro hasta que el primer libro resolviera.
-            applyFilters();
 
             setProcessingUI(true);
             abortController = new AbortController();
@@ -1995,33 +1842,22 @@
                 showToast(`Lista truncada a ${MAX_TITLES} títulos (límite máximo permitido).`, 'info');
             }
 
-            // Auditoría — se cuenta cuántas veces aparece cada título dentro de la lista
-            // pegada, para agruparlas en UN solo aviso (en vez de uno por cada línea
-            // repetida) y sugerir automáticamente la cantidad en la columna "Copias" —
-            // el maestro decide si esas repeticiones son ejemplares físicos reales o un
-            // error de captura (título pegado por accidente más de una vez).
-            const occurrences = new Map(); // título normalizado -> { raw, count, lines }
+            // Auditoría — deduplicar la lista pegada antes de gastar una sola solicitud
+            const seenInBatch = new Set();
+            const deduped = [];
             rawTitles.forEach((t, idx) => {
                 const norm = normalizeText(t);
-                if (!norm) return;
-                if (!occurrences.has(norm)) occurrences.set(norm, { raw: t, count: 0, lines: [] });
-                const entry = occurrences.get(norm);
-                entry.count++;
-                entry.lines.push(idx + 1);
-            });
-
-            const deduped = [];
-            occurrences.forEach((entry, norm) => {
-                if (entry.count > 1) {
-                    logAudit('duplicado', `"${entry.raw}" aparece ${entry.count} veces en la lista que pegaste (líneas ${entry.lines.join(', ')}) — se procesará una sola vez. Si de verdad tienes ${entry.count} ejemplares físicos, confírmalo en la columna "Copias" al clasificarlo (ya viene sugerida); si fue un error de captura, corrígela ahí mismo.`);
-                }
-                if (titleIndex.has(norm)) {
-                    const existing = titleIndex.get(norm);
-                    const extra = entry.count > 1 ? ` (además se repitió ${entry.count} veces en esta lista)` : '';
-                    logAudit('descartado', `"${entry.raw}" ya existe en la tabla${existing.apiData && existing.apiData.found ? ` como "${existing.apiData.title}"` : ''}${extra} — se omitió para no duplicar. Si son ejemplares adicionales de ese libro, ajusta a mano la columna "Copias" del que ya está en la tabla.`);
+                if (seenInBatch.has(norm)) {
+                    logAudit('duplicado', `Línea ${idx + 1} omitida: "${t}" está repetida dentro de la lista que pegaste.`);
                     return;
                 }
-                deduped.push({ title: entry.raw, copias: entry.count > 1 ? entry.count : null });
+                seenInBatch.add(norm);
+                if (titleIndex.has(norm)) {
+                    const existing = titleIndex.get(norm);
+                    logAudit('descartado', `"${t}" ya existe en la tabla${existing.apiData && existing.apiData.found ? ` como "${existing.apiData.title}"` : ''} — se omitió para no duplicar.`);
+                    return;
+                }
+                deduped.push(t);
             });
 
             if (deduped.length === 0) {
@@ -2167,8 +2003,6 @@
             isbnIndex.clear();
             titleIndex.clear();
             recordById.clear();
-            selectedForBulk.clear();
-            document.getElementById('selectAllVisibleCheckbox').checked = false;
             clearSavedSession(); // higiene: una limpieza intencional no debe poder "recuperarse" al recargar
             recordsTable.querySelectorAll('tr:not(#emptyState)').forEach(row => row.remove());
             emptyState.style.display = 'table-row';
@@ -2176,7 +2010,6 @@
             titleInput.dispatchEvent(new Event('input'));
             filterInput.value = '';
             filterStatus.value = 'all';
-            document.getElementById('filterClassify').value = 'all';
             filterCount.textContent = '';
             updateStats();
             showToast('Tablero limpiado correctamente.', 'success');
@@ -2462,7 +2295,7 @@
             // (segundo clic dentro de los siguientes segundos).
             const pending = pendingClassifyCount();
             if (pending > 0 && !exportOverrideArmed) {
-                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa "Ir a clasificar →" arriba de la tabla para completarlos — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
+                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa "Auditar como Rincón" o "Clasificar como General" — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
                 exportOverrideArmed = true;
                 setTimeout(() => { exportOverrideArmed = false; }, 8000);
                 return;
@@ -2637,5 +2470,6 @@
     })();
     </script>
     <script src="importacion.js"></script>
+    <script src="catalogo_historico.js"></script>
 </body>
 </html>
