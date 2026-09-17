@@ -2,7 +2,7 @@
  * MOTOR 3 — Consolidación de Inventario vía Excel/CSV
  * ============================================================
  * Módulo independiente (arquitectura elegida: archivo separado). Depende de:
- *   - window.Validador  → API pública expuesta por validador_de_titulos.html
+ *   - window.Validador  → API pública expuesta por index.html
  *   - window.XLSX       → SheetJS Community Edition (solo LECTURA de archivos subidos;
  *                          la exportación sigue usando xlsx-populate sobre la plantilla oficial)
  *
@@ -15,7 +15,7 @@
     'use strict';
 
     if (!window.Validador) {
-        console.error('importacion.js requiere que validador_de_titulos.html se cargue primero (window.Validador no está disponible).');
+        console.error('importacion.js requiere que index.html se cargue primero (window.Validador no está disponible).');
         return;
     }
     const V = window.Validador;
@@ -313,12 +313,31 @@
         }
 
         if (rec.titulo) {
+            // Coincidencia exacta de título primero: es O(1) contra el índice y resuelve la
+            // mayoría de los casos sin recorrer nada.
+            const exacto = V.titleIndex.get(V.normalizeText(rec.titulo));
+            if (exacto && exacto.apiData && exacto.apiData.found) {
+                const filled = V.mergeFieldsIntoRecord(exacto, sourceFields);
+                const filledManual = hasManualFields ? V.mergeManualFields(exacto, manualFieldsCandidate) : [];
+                const allFilled = filled.concat(filledManual.map(f => FIELD_DISPLAY[f]));
+                V.logAudit('descartado', `Archivo: "${rec.titulo}" coincide exactamente con un registro ya existente — se fusionó en vez de duplicarlo. Completó: ${allFilled.length ? allFilled.join(', ') : 'nada nuevo'}.`);
+                return exacto;
+            }
+
+            // Búsqueda difusa. El filtro de antes exigía `!existing.apiData.isbn`, es decir,
+            // solo consideraba registros SIN ISBN. Consecuencia: una fila de archivo sin ISBN
+            // cuyo título coincidía con un registro que sí tenía ISBN creaba un duplicado —
+            // justo el caso común de capturar por título primero e importar después un Excel
+            // viejo sin ISBN. Ahora la restricción se aplica solo cuando la fila entrante
+            // trae su propio ISBN: ahí sí, un ISBN distinto puede significar otra edición,
+            // y fusionarlas a ciegas sería peor que dejar los dos registros.
+            const entranteTraeIsbn = !!sourceFields.isbn;
             let bestMatch = null, bestSim = 0;
             V.titleIndex.forEach(existing => {
-                if (existing.apiData && existing.apiData.found && !existing.apiData.isbn) {
-                    const sim = V.similarityRatio(rec.titulo, existing.apiData.title);
-                    if (sim > bestSim) { bestSim = sim; bestMatch = existing; }
-                }
+                if (!existing.apiData || !existing.apiData.found) return;
+                if (entranteTraeIsbn && existing.apiData.isbn) return;
+                const sim = V.similarityRatio(rec.titulo, existing.apiData.title);
+                if (sim > bestSim) { bestSim = sim; bestMatch = existing; }
             });
             if (bestMatch && bestSim >= V.STRONG_SIMILARITY) {
                 const filled = V.mergeFieldsIntoRecord(bestMatch, sourceFields);
@@ -379,14 +398,14 @@
             (!r.apiData.authors || !r.apiData.publisher || !r.apiData.isbn || !r.apiData.publishYear || !r.apiData.coverUrl));
         if (withGaps.length === 0) return;
 
-        V.setProcessingUI(true, `Consolidación completa. Buscando en las 3 fuentes solo lo que sigue faltando (${withGaps.length} registro(s))...`);
+        V.setProcessingUI(true, `Consolidación completa. Buscando en las fuentes disponibles solo lo que sigue faltando (${withGaps.length} registro(s))...`);
         const signal = V.createAbortController().signal;
         try {
             await V.processBatch(withGaps, signal, async (record, sig) => {
                 await V.fillMissingFields(record, sig);
                 const stillMissing = ['authors', 'publisher', 'isbn', 'publishYear'].filter(f => !record.apiData[f]);
                 if (stillMissing.length > 0) {
-                    V.logAudit('pendiente', `"${record.apiData.title}": tras consolidar los archivos, no fue posible verificar ${stillMissing.map(f => V.FIELD_LABELS[f]).join(', ')} en ninguna de las 3 fuentes.`);
+                    V.logAudit('pendiente', `"${record.apiData.title}": tras consolidar los archivos, no fue posible verificar ${stillMissing.map(f => V.FIELD_LABELS[f]).join(', ')} en ninguna de las fuentes disponibles.`);
                 }
                 V.indexRecord(record);
                 V.renderRow(record);
@@ -438,6 +457,11 @@
             // búsqueda avance de arriba hacia abajo, igual que se ve en pantalla.
             const touchedInVisualOrder = touched.slice().reverse();
             await smartFetchMissingFields(touchedInVisualOrder);
+            // El autoguardado venía "de regalo" desde processBatch, así que si los archivos
+            // llegaban completos, smartFetchMissingFields hacía return temprano y la
+            // importación entera se quedaba sin guardar. Ahora se guarda siempre, pase o no
+            // por la búsqueda web.
+            V.saveSessionToStorage();
             V.logFinalAuditSummary('Motor 3 (Archivos)');
             V.updateStats();
             V.applyFilters();

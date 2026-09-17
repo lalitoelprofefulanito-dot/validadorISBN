@@ -2,7 +2,7 @@
  * MOTOR 5 — Clasificación SEP automática vía Catálogo Histórico de Libros del Rincón
  * ============================================================
  * Módulo independiente (misma arquitectura que importacion.js). Depende de:
- *   - window.Validador → API pública expuesta por validador_de_titulos.html
+ *   - window.Validador → API pública expuesta por index.html
  *   - fetch a un JSON público en GitHub (Catálogo Histórico Consolidado, ~3200
  *     títulos con su Grado/Serie/Género/Categoría oficial SEP)
  *
@@ -30,22 +30,30 @@
     'use strict';
 
     if (!window.Validador) {
-        console.error('catalogo_historico.js requiere que validador_de_titulos.html se cargue primero (window.Validador no está disponible).');
+        console.error('catalogo_historico.js requiere que index.html se cargue primero (window.Validador no está disponible).');
         return;
     }
     const V = window.Validador;
 
-    const CATALOGO_URL = 'https://raw.githubusercontent.com/lalitoelprofefulanito-dot/catalogo-rincon/refs/heads/main/catalogo.json';
+    // La URL ya no está cableada aquí: la lee del panel de configuración (con la de
+    // Molino de Rosas como predeterminada), para que otra escuela pueda apuntar a su
+    // propio catálogo sin editar este archivo.
     const TIEMPO_LIMITE_MS = 15000;
 
     const GRADO_OPTIONS = ['1°', '2°', '3°', '4°', '5°', '6°'];
     const GENERO_OPTIONS = ['Informativo', 'Literario'];
 
-    // Umbral más estricto que los de la app (0.30 / 0.60): aquí una coincidencia
+    // Umbral más estricto que los de la app (0.38 / 0.62): aquí una coincidencia
     // equivocada no solo trae un dato de más, decide Grado/Serie/Categoría, que
     // alimentan directamente el inventario oficial exportado.
     const AUTO_APPLY_THRESHOLD = 0.85;
     const SUGGEST_THRESHOLD = 0.65; // por debajo de esto, ni se registra como sugerencia
+    // Margen de ambigüedad: si el segundo mejor candidato queda a menos de esto del
+    // primero Y clasifica distinto, no se aplica nada. Medido contra el catálogo real:
+    // ~2.7% de los títulos tienen un vecino por encima de 0.85 ("El clima" 2° vs "Clima"
+    // 4°, "El agua" 1° vs "Agua" 3°), y elegir al azar entre ellos metería el grado
+    // equivocado en la plantilla oficial. Ante la duda, no se decide sola: se documenta.
+    const AMBIGUITY_MARGIN = 0.10;
 
     let catalogEntries = null;   // arreglo completo, tal cual llega el JSON
     let exactIndex = null;       // Map<tituloNormalizado, entry[]>
@@ -60,15 +68,24 @@
             const controlador = new AbortController();
             const temporizador = setTimeout(() => controlador.abort(), TIEMPO_LIMITE_MS);
             try {
-                const resp = await fetch(CATALOGO_URL, { signal: controlador.signal, cache: 'default' });
+                const resp = await fetch(V.getCatalogoUrl(), { signal: controlador.signal, cache: 'default' });
                 if (!resp.ok) throw new Error(`El servidor respondió con estado ${resp.status}`);
                 const data = await resp.json();
                 if (!Array.isArray(data)) throw new Error('El JSON del catálogo histórico no tiene el formato esperado.');
 
+                // Se normaliza UNA sola vez por entrada y se guarda junto a ella (_norm,
+                // _tokens). Antes, el fallback difuso normalizaba cada uno de los ~3,200
+                // títulos del catálogo en CADA comparación, y similarityRatio volvía a
+                // normalizar ambos por dentro: para 700 registros eran millones de
+                // normalizaciones repetidas y el navegador se quedaba congelado. El
+                // `await` que cede el hilo cada 40 registros no ayudaba, porque el bloqueo
+                // ocurría dentro del procesamiento de un solo registro.
                 catalogEntries = data.filter((e) => e && e['Título']);
                 exactIndex = new Map();
                 catalogEntries.forEach((entry) => {
                     const key = V.normalizeText(entry['Título']);
+                    entry._norm = key;
+                    entry._tokens = key ? new Set(key.split(' ').filter(Boolean)) : new Set();
                     if (!key) return;
                     if (!exactIndex.has(key)) exactIndex.set(key, []);
                     exactIndex.get(key).push(entry);
@@ -96,30 +113,58 @@
         if (!norm) return null;
 
         // Coincidencia exacta primero: la mayoría de los títulos bien capturados caen aquí.
+        // OJO: el catálogo tiene 198 títulos repetidos en varias generaciones, y 187 de
+        // ellos clasifican DISTINTO entre una y otra ("La selva" es 1° en un ciclo y 4° en
+        // otro, con serie y categoría distintas). No es un error del catálogo: la SEP
+        // reasignó esos títulos. Pero significa que "coincidencia exacta" no equivale a
+        // "clasificación inequívoca", así que el competidor se arrastra igual que en el
+        // camino difuso, para que la guarda de ambigüedad pueda frenarlo.
         const exact = exactIndex.get(norm);
         if (exact && exact.length > 0) {
-            return { entry: pickAmongDuplicates(exact), similarity: 1 };
+            const ordenadas = ordenarPorCicloReciente(exact);
+            return { entry: ordenadas[0], similarity: 1, second: ordenadas[1] || null, secondSimilarity: ordenadas[1] ? 1 : 0 };
         }
 
-        // Fallback difuso, acotado por longitud para no comparar contra los ~3200 registros completos.
-        let best = null, bestSim = 0;
+        // Fallback difuso. Dos filtros baratos antes de pagar el cálculo caro:
+        //   1) longitud parecida (como antes, pero sin renormalizar);
+        //   2) al menos una palabra en común — si no comparten ni una, la similitud no va
+        //      a alcanzar el umbral mínimo y comparar carácter por carácter es tiempo tirado.
+        // Lo que queda se compara con similarityFromNormalized, que recibe los textos ya
+        // normalizados y se salta ese trabajo repetido.
+        const queryTokens = new Set(norm.split(' ').filter(Boolean));
+        let best = null, bestSim = 0;      // mejor candidato
+        let second = null, secondSim = 0;  // segundo mejor, para medir ambigüedad
         const normLen = norm.length;
         for (const entry of catalogEntries) {
-            const entryNorm = V.normalizeText(entry['Título']);
+            const entryNorm = entry._norm;
+            if (!entryNorm) continue;
             if (Math.abs(entryNorm.length - normLen) > Math.max(6, normLen * 0.35)) continue;
-            const sim = V.similarityRatio(title, entry['Título']);
-            if (sim > bestSim) { bestSim = sim; best = entry; }
+
+            let comparteAlgo = false;
+            for (const t of entry._tokens) {
+                if (queryTokens.has(t)) { comparteAlgo = true; break; }
+            }
+            if (!comparteAlgo) continue;
+
+            const sim = V.similarityFromNormalized(norm, entryNorm);
+            if (sim > bestSim) {
+                second = best; secondSim = bestSim;
+                best = entry; bestSim = sim;
+            } else if (sim > secondSim) {
+                second = entry; secondSim = sim;
+            }
         }
-        return best ? { entry: best, similarity: bestSim } : null;
+        return best ? { entry: best, similarity: bestSim, second, secondSimilarity: secondSim } : null;
     }
 
-    // Cuando el mismo título aparece en varias generaciones del catálogo, se prefiere
-    // la entrada más reciente (Ciclo_Escolar más alto): es la que con más probabilidad
-    // refleja la clasificación vigente si en algún momento cambió de serie o categoría.
-    function pickAmongDuplicates(entries) {
+    // Cuando el mismo título aparece en varias generaciones, se ordenan por Ciclo_Escolar
+    // descendente: la más reciente es la que con más probabilidad refleja la clasificación
+    // vigente. Antes esta función ELEGÍA una y descartaba el resto en silencio; ahora solo
+    // ordena, y quien decide si esa preferencia basta es la guarda de ambigüedad.
+    function ordenarPorCicloReciente(entries) {
         return entries.slice().sort((a, b) =>
             String(b.Ciclo_Escolar || '').localeCompare(String(a.Ciclo_Escolar || ''))
-        )[0];
+        );
     }
 
     // ============================================================
@@ -134,9 +179,17 @@
         return candidate;
     }
 
-    // ============================================================
-    // Orquestación del botón — recorre los registros ya validados/para revisar
-    // ============================================================
+    // ¿Hay otra entrada del catálogo casi igual de parecida que clasifica DISTINTO?
+    // Si la hay, ninguna de las dos puede aplicarse sola: el catálogo tiene títulos
+    // casi idénticos con grados distintos ("El clima" 2° vs "Clima" 4°), y elegir por
+    // centésimas de similitud metería el grado equivocado en el inventario oficial.
+    function esAmbiguo(match) {
+        if (!match.second) return false;
+        if (match.similarity - match.secondSimilarity > AMBIGUITY_MARGIN) return false;
+        const a = buildCandidateFields(match.entry);
+        const b = buildCandidateFields(match.second);
+        return ['grado', 'generoSEP', 'categoriaSEP', 'serie'].some(f => (a[f] || '') !== (b[f] || ''));
+    }
     async function runMatchPipeline() {
         const btn = document.getElementById('catalogoHistoricoBtn');
         const originalLabel = btn.textContent;
@@ -157,7 +210,7 @@
             return;
         }
 
-        let applied = 0, suggested = 0;
+        let applied = 0, suggested = 0, ambiguos = 0;
         for (let i = 0; i < records.length; i++) {
             const record = records[i];
             if (i % 40 === 0) {
@@ -172,6 +225,11 @@
             if (!match || match.similarity < SUGGEST_THRESHOLD) continue;
 
             if (match.similarity >= AUTO_APPLY_THRESHOLD) {
+                if (esAmbiguo(match)) {
+                    ambiguos++;
+                    V.logAudit('pendiente', `"${title}": el catálogo histórico tiene DOS entradas casi igual de parecidas que clasifican distinto — "${match.entry['Título']}" (${match.entry.Grado || 'sin grado'}, ${match.entry['Categoría'] || 'sin categoría'}) y "${match.second['Título']}" (${match.second.Grado || 'sin grado'}, ${match.second['Categoría'] || 'sin categoría'}). No se aplicó ninguna: elige tú cuál corresponde en las columnas del Motor 4.`);
+                    continue;
+                }
                 const candidate = buildCandidateFields(match.entry);
                 const filled = V.mergeManualFields(record, candidate);
                 if (filled.length > 0) {
@@ -186,8 +244,13 @@
 
         V.updateStats();
         V.applyFilters();
+        // Sin esto, toda la clasificación aplicada por este motor se perdía al recargar la
+        // pestaña: era el único motor que modificaba registros sin pasar nunca por
+        // processBatch, que es quien venía disparando el autoguardado.
+        if (applied > 0) V.saveSessionToStorage();
         V.showToast(
-            `Catálogo histórico: ${applied} registro(s) clasificado(s) automáticamente, ${suggested} sugerencia(s) para revisar a mano.`,
+            `Catálogo histórico: ${applied} registro(s) clasificado(s) automáticamente, ${suggested} sugerencia(s) para revisar a mano` +
+            (ambiguos > 0 ? `, ${ambiguos} caso(s) ambiguo(s) sin decidir (revisa la Bitácora).` : '.'),
             applied > 0 ? 'success' : 'info'
         );
 

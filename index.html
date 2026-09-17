@@ -113,15 +113,83 @@
             <!-- Left Column: Controls & Stats -->
             <div class="xl:col-span-4 space-y-6 flex flex-col">
 
-                <!-- Configuración: API Key opcional -->
-                <div class="bg-white border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                    </svg>
-                    <label for="googleApiKeyInput" class="text-slate-500 shrink-0">Clave API de Google Books (opcional):</label>
-                    <input type="text" id="googleApiKeyInput" placeholder="Cuota compartida por defecto — pega tu clave para una cuota exclusiva"
-                        class="flex-1 min-w-0 text-xs border border-slate-200 rounded px-2 py-1 focus:ring-1 focus:ring-emerald-500 outline-none">
-                </div>
+                <!-- ============================================================
+                     Configuración (Bloque C — replicabilidad)
+                     ============================================================
+                     Todo lo que antes estaba cableado al contexto de una sola escuela vive
+                     aquí como campo editable: claves de API, catálogo histórico y plantilla
+                     de exportación. Otro maestro puede usar la app sin tocar el código.
+                     Cada valor se guarda en localStorage del propio navegador — NUNCA en
+                     este archivo, para que el repositorio pueda ser público sin filtrar
+                     credenciales. -->
+                <details id="configPanel" class="bg-white border border-slate-200 rounded-lg text-xs overflow-hidden">
+                    <summary class="px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-slate-50 select-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span class="font-semibold text-slate-600 flex-1">Configuración — fuentes, catálogo y plantilla</span>
+                        <span id="configSummaryBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">3 fuentes activas</span>
+                    </summary>
+
+                    <div class="px-3 pb-3 pt-1 space-y-3 border-t border-slate-100">
+
+                        <div>
+                            <label for="isbndbApiKeyInput" class="text-slate-600 font-semibold block mb-1">
+                                Clave API de ISBNdb
+                                <span class="font-normal text-slate-400">— activa la 4ª fuente, la de mejor cobertura en español</span>
+                            </label>
+                            <input type="password" id="isbndbApiKeyInput" autocomplete="off" spellcheck="false"
+                                placeholder="Pega aquí tu clave de isbndb.com (formato 12345_abc...)"
+                                class="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 outline-none font-mono">
+                            <p id="isbndbStatus" class="text-[10px] text-slate-400 mt-1">Sin clave: ISBNdb queda desactivado y la app usa las otras 3 fuentes.</p>
+                        </div>
+
+                        <div>
+                            <label for="googleApiKeyInput" class="text-slate-600 font-semibold block mb-1">
+                                Clave API de Google Books
+                                <span class="font-normal text-slate-400">— opcional, para cuota exclusiva</span>
+                            </label>
+                            <input type="password" id="googleApiKeyInput" autocomplete="off" spellcheck="false"
+                                placeholder="Sin clave se usa la cuota anónima compartida"
+                                class="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 outline-none font-mono">
+                        </div>
+
+                        <div>
+                            <label for="catalogoUrlInput" class="text-slate-600 font-semibold block mb-1">
+                                URL del catálogo histórico (Motor 5)
+                                <span class="font-normal text-slate-400">— JSON público</span>
+                            </label>
+                            <input type="url" id="catalogoUrlInput" spellcheck="false"
+                                class="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 outline-none">
+                            <p class="text-[10px] text-slate-400 mt-1">Cambia esta URL para apuntar al catálogo de tu propia escuela o entidad.</p>
+                        </div>
+
+                        <div>
+                            <span class="text-slate-600 font-semibold block mb-1">
+                                Plantilla de exportación
+                                <span class="font-normal text-slate-400">— .xlsx con las hojas Inventario y Clasificador SEP</span>
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button type="button" id="templateUploadBtn"
+                                    class="text-[11px] font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-1 rounded transition-all">
+                                    Usar mi propia plantilla
+                                </button>
+                                <button type="button" id="templateResetBtn"
+                                    class="hidden text-[11px] font-medium text-slate-500 hover:text-rose-600 bg-white border border-slate-200 px-2 py-1 rounded transition-all">
+                                    Volver a la incluida
+                                </button>
+                                <input type="file" id="templateFileInput" accept=".xlsx" class="hidden">
+                            </div>
+                            <p id="templateStatus" class="text-[10px] text-slate-400 mt-1">Usando la plantilla incluida (Biblioteca Viva — Molino de Rosas).</p>
+                        </div>
+
+                        <p class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 leading-relaxed">
+                            <strong>Sobre las claves:</strong> se guardan solo en este navegador (localStorage), nunca dentro del archivo HTML.
+                            Si publicas o compartes este archivo, no viajan con él. Restringe tus claves por dominio en el panel de cada proveedor.
+                        </p>
+                    </div>
+                </details>
 
                 <!-- Input Form -->
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
@@ -392,14 +460,49 @@
         const WORKER_PACE_MS = 250;             // pausa de cada worker entre solicitudes propias
         const REQUEST_TIMEOUT_MS = 12000;       // tiempo máximo por solicitud
         const MAX_RETRIES = 2;                  // reintentos por fuente ante error/HTTP 429/5xx
-        const MIN_ACCEPTABLE_SIMILARITY = 0.30; // por debajo de esto, se descarta como falso positivo
-        const STRONG_SIMILARITY = 0.60;         // por encima de esto, se considera "Validado"
+
+        // ── Umbrales de confianza (recalibrados en la auditoría del 17/09/2026) ──
+        // Los valores anteriores (0.30 / 0.60) se midieron contra títulos reales del acervo
+        // y producían falsos positivos graves: "El libro salvaje" vs "El libro vaquero"
+        // puntuaba 63% y quedaba marcado como VALIDADO, escribiendo autor y editorial
+        // equivocados en la plantilla oficial. La causa de fondo era la métrica
+        // (Levenshtein puro sobre la cadena completa), no solo el número: ver titleSimilarity().
+        const MIN_ACCEPTABLE_SIMILARITY = 0.38; // por debajo de esto, se descarta como falso positivo
+        const STRONG_SIMILARITY = 0.62;         // por encima de esto, se considera "Validado"
+        const EARLY_STOP_SIMILARITY = 0.92;     // coincidencia tan buena que no vale gastar cuota en más fuentes
+
+        // Cuántos candidatos se le piden a cada fuente. Antes era 1 en las seis funciones de
+        // búsqueda: si el libro correcto era el segundo resultado, era inalcanzable.
+        const CANDIDATES_PER_SOURCE = 5;
 
         const OL_SEARCH_URL = 'https://openlibrary.org/search.json';
         const OL_FIELDS = 'title,author_name,first_publish_year,publisher,isbn,cover_i';
         const GB_SEARCH_URL = 'https://www.googleapis.com/books/v1/volumes';
         const IA_SEARCH_URL = 'https://archive.org/advancedsearch.php';
         const IA_FIELDS = ['identifier', 'title', 'creator', 'year', 'publisher', 'isbn'];
+
+        // ISBNdb — 4ª fuente. Es la de mejor cobertura para ediciones mexicanas y en español
+        // (FCE, SEP, Castillo, El Naranjo...), justo el perfil del acervo escolar; además
+        // devuelve sinopsis, que ninguna de las otras tres entrega de forma confiable.
+        // Requiere clave: sin clave la fuente simplemente no participa, sin romper nada.
+        // Límites del proveedor: 60 peticiones/minuto y 5,000/día — por eso pasa por su
+        // propio limitador de ritmo en vez de compartir el del pool general.
+        const ISBNDB_SEARCH_URL = 'https://api2.isbndb.com/books';
+        const ISBNDB_BOOK_URL = 'https://api2.isbndb.com/book';
+        const ISBNDB_MIN_INTERVAL_MS = 1100;    // 60/min con margen de seguridad
+
+        // Catálogo histórico del Motor 5. Antes era una constante dentro de
+        // catalogo_historico.js: quien quisiera apuntar al catálogo de su propia entidad
+        // tenía que editar el archivo. Ahora es un campo del panel de configuración.
+        const CATALOGO_URL_STORAGE = 'validador_catalogo_url_v1';
+        const CATALOGO_URL_DEFAULT = 'https://raw.githubusercontent.com/lalitoelprofefulanito-dot/catalogo-rincon/refs/heads/main/catalogo.json';
+        function getCatalogoUrl() {
+            try {
+                const saved = localStorage.getItem(CATALOGO_URL_STORAGE);
+                if (saved) return saved;
+            } catch (e) { /* localStorage no disponible — se usa el predeterminado */ }
+            return CATALOGO_URL_DEFAULT;
+        }
 
         // Plantilla oficial "Inventario Biblioteca Viva" (Escuela Primaria Molino de Rosas) embebida en
         // Base64 para poder generar la exportacion sin depender de que el usuario la vuelva a subir cada vez.
@@ -486,11 +589,72 @@
             return prev[bl];
         }
 
-        function similarityRatio(a, b) {
-            const na = normalizeText(a), nb = normalizeText(b);
+        // ── Similitud de títulos: métrica híbrida ────────────────────────────────
+        // Reemplaza al Levenshtein puro que se usaba antes. Levenshtein sobre la cadena
+        // completa fallaba de dos maneras opuestas y las dos dolían:
+        //   · Falso positivo: "El libro salvaje" vs "El libro vaquero" = 63% → VALIDADO.
+        //     Dos libros distintos, y como las filas validadas quedaban bloqueadas, el
+        //     dato equivocado llegaba intacto a la plantilla oficial.
+        //   · Falso negativo: "El principito" vs "El Principito (edición ilustrada)" = 42%.
+        //     El mismo libro, descartado por traer mención de edición — que en Libros del
+        //     Rincón es la norma, no la excepción.
+        // La métrica nueva combina tres señales sobre TOKENS DE CONTENIDO (sin artículos
+        // ni preposiciones, que son justo lo que inflaba el parecido de títulos distintos):
+        //   · cobertura  — qué parte del título más corto aparece en el más largo; es lo
+        //                  que rescata subtítulos y menciones de edición.
+        //   · jaccard    — qué tanto se solapan ambos vocabularios; es lo que separa
+        //                  "libro salvaje" de "libro vaquero".
+        //   · levenshtein— desempate fino para erratas de captura y plurales.
+        const STOPWORDS_ES = new Set([
+            'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'al',
+            'y', 'e', 'o', 'u', 'en', 'a', 'que', 'con', 'por', 'para', 'su', 'sus',
+            'mi', 'mis', 'tu', 'tus', 'lo', 'es', 'se', 'the', 'of', 'and', 'a', 'an'
+        ]);
+
+        function contentTokens(normalized) {
+            const all = normalized.split(' ').filter(Boolean);
+            const content = all.filter(t => !STOPWORDS_ES.has(t));
+            // Un título compuesto solo de palabras vacías ("Y yo qué") se queda con las
+            // originales: es preferible comparar algo a comparar un conjunto vacío.
+            return content.length ? content : all;
+        }
+
+        function levenshteinRatio(na, nb) {
             const maxLen = Math.max(na.length, nb.length);
             if (maxLen === 0) return 1;
             return Math.max(0, 1 - levenshtein(na, nb) / maxLen);
+        }
+
+        // Recibe los títulos YA normalizados. Existe aparte de similarityRatio para que el
+        // Motor 5, que compara cada título contra miles de entradas del catálogo histórico,
+        // pueda normalizar una sola vez y no en cada comparación (ver catalogo_historico.js).
+        function similarityFromNormalized(na, nb) {
+            if (!na && !nb) return 1;
+            if (!na || !nb) return 0;
+            if (na === nb) return 1;
+
+            const ta = contentTokens(na), tb = contentTokens(nb);
+            const setA = new Set(ta), setB = new Set(tb);
+            let shared = 0;
+            setA.forEach(t => { if (setB.has(t)) shared++; });
+
+            const union = setA.size + setB.size - shared;
+            const jaccard = union === 0 ? 0 : shared / union;
+            let coverage = shared / Math.min(setA.size, setB.size);
+
+            // Guarda contra el caso "El gato" ⊂ "El gato con botas": cuando el título corto
+            // aporta una sola palabra de contenido y el largo aporta tres o más, la cobertura
+            // vale 1 sin que eso pruebe nada. Se atenúa para que necesite apoyo de las otras
+            // dos señales antes de llegar a "Validado".
+            if (Math.min(setA.size, setB.size) <= 1 && Math.max(setA.size, setB.size) >= 3) {
+                coverage *= 0.75;
+            }
+
+            return 0.45 * coverage + 0.35 * jaccard + 0.20 * levenshteinRatio(na, nb);
+        }
+
+        function similarityRatio(a, b) {
+            return similarityFromNormalized(normalizeText(a), normalizeText(b));
         }
 
         function getBestIsbn(isbnArray) {
@@ -540,12 +704,12 @@
             return controller.signal;
         }
 
-        async function fetchJson(url, outerSignal, timeoutMs = REQUEST_TIMEOUT_MS) {
+        async function fetchJson(url, outerSignal, timeoutMs = REQUEST_TIMEOUT_MS, headers = null) {
             const timeoutController = new AbortController();
             const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
             const signal = combineSignals(outerSignal, timeoutController.signal);
             try {
-                const res = await fetch(url, { signal });
+                const res = await fetch(url, headers ? { signal, headers } : { signal });
                 if (!res.ok) {
                     const err = new Error(`HTTP ${res.status}`);
                     err.status = res.status;
@@ -580,23 +744,48 @@
             }
         }
 
+        // Limitador de ritmo global (no por worker). ISBNdb permite 60 peticiones por
+        // minuto; con 3 workers en paralelo se rebasaría en segundos y el proveedor
+        // empezaría a devolver 429. Esto encola las llamadas y garantiza un intervalo
+        // mínimo entre ellas, sin que el maestro tenga que hacer nada ni enterarse.
+        function createRateLimiter(minIntervalMs) {
+            let chain = Promise.resolve();
+            let lastRun = 0;
+            return function schedule(fn, signal) {
+                const run = chain.then(async () => {
+                    const wait = Math.max(0, lastRun + minIntervalMs - Date.now());
+                    if (wait > 0) await sleep(wait, signal);
+                    lastRun = Date.now();
+                    return fn();
+                });
+                // La cadena nunca se rompe por un fallo individual: si una petición revienta,
+                // la siguiente debe poder seguir respetando el intervalo igual.
+                chain = run.catch(() => {});
+                return run;
+            };
+        }
+        const isbndbLimiter = createRateLimiter(ISBNDB_MIN_INTERVAL_MS);
+
         // ============================================================
         // Fuentes de datos
         // ============================================================
+        // Todas las funciones de búsqueda por título devuelven un ARREGLO de candidatos
+        // (hasta CANDIDATES_PER_SOURCE), no un candidato único. Quien decide cuál gana es
+        // combinedLookup, comparando por similitud — antes decidía el orden de la cascada.
         async function fetchOpenLibrary(title, signal) {
-            const url = `${OL_SEARCH_URL}?title=${encodeURIComponent(title)}&fields=${OL_FIELDS}&limit=1`;
+            const url = `${OL_SEARCH_URL}?title=${encodeURIComponent(title)}&fields=${OL_FIELDS}&limit=${CANDIDATES_PER_SOURCE}`;
             const data = await fetchJson(url, signal);
-            if (!data.docs || data.docs.length === 0) return null;
-            const book = data.docs[0];
-            return {
+            if (!data.docs || data.docs.length === 0) return [];
+            return data.docs.filter(b => b && b.title).map(book => ({
                 source: 'OpenLibrary',
-                title: book.title || 'Título sin especificar',
+                title: book.title,
                 authors: book.author_name ? book.author_name.join(', ') : null,
                 publishYear: book.first_publish_year || null,
                 publisher: Array.isArray(book.publisher) && book.publisher.length ? book.publisher[0] : null,
                 isbn: getBestIsbn(book.isbn),
-                coverUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
-            };
+                coverUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null,
+                synopsis: null
+            }));
         }
 
         // Mejora #3 — clave de Google Books opcional: si el maestro pega su propia clave,
@@ -611,103 +800,156 @@
         }
 
         async function fetchGoogleBooks(title, signal) {
-            const url = withGoogleApiKey(`${GB_SEARCH_URL}?q=${encodeURIComponent('intitle:' + title)}&maxResults=1&printType=books`);
+            const url = withGoogleApiKey(`${GB_SEARCH_URL}?q=${encodeURIComponent('intitle:' + title)}&maxResults=${CANDIDATES_PER_SOURCE}&printType=books`);
             const data = await fetchJson(url, signal);
-            if (!data.items || data.items.length === 0) return null;
-            const info = data.items[0].volumeInfo || {};
-            const ids = info.industryIdentifiers || [];
-            const isbn13 = ids.find(i => i.type === 'ISBN_13');
-            const isbn10 = ids.find(i => i.type === 'ISBN_10');
-            const isbn = (isbn13 || isbn10 || {}).identifier || null;
-            let coverUrl = info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail) : null;
-            if (coverUrl) coverUrl = coverUrl.replace('http://', 'https://');
-            return {
-                source: 'Google Books',
-                title: info.title || 'Título sin especificar',
-                authors: info.authors ? info.authors.join(', ') : null,
-                publishYear: info.publishedDate ? info.publishedDate.slice(0, 4) : null,
-                publisher: info.publisher || null,
-                isbn,
-                coverUrl
-            };
+            if (!data.items || data.items.length === 0) return [];
+            return data.items.map(item => {
+                const info = item.volumeInfo || {};
+                if (!info.title) return null;
+                const ids = info.industryIdentifiers || [];
+                const isbn13 = ids.find(i => i.type === 'ISBN_13');
+                const isbn10 = ids.find(i => i.type === 'ISBN_10');
+                let coverUrl = info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail) : null;
+                if (coverUrl) coverUrl = coverUrl.replace('http://', 'https://');
+                return {
+                    source: 'Google Books',
+                    title: info.title,
+                    authors: info.authors ? info.authors.join(', ') : null,
+                    publishYear: info.publishedDate ? info.publishedDate.slice(0, 4) : null,
+                    publisher: info.publisher || null,
+                    isbn: (isbn13 || isbn10 || {}).identifier || null,
+                    coverUrl,
+                    synopsis: info.description || null
+                };
+            }).filter(Boolean);
         }
 
         async function fetchInternetArchive(title, signal) {
             // Busca solo en materiales de texto (libros), evitando audio/video/software
             const q = `title:(${title}) AND mediatype:(texts)`;
-            const params = new URLSearchParams({ q, rows: '1', page: '1', output: 'json' });
+            const params = new URLSearchParams({ q, rows: String(CANDIDATES_PER_SOURCE), page: '1', output: 'json' });
             IA_FIELDS.forEach(f => params.append('fl[]', f));
             const url = `${IA_SEARCH_URL}?${params.toString()}`;
             const data = await fetchJson(url, signal);
             const docs = data && data.response && data.response.docs;
-            if (!docs || docs.length === 0) return null;
-            const doc = docs[0];
+            if (!docs || docs.length === 0) return [];
 
-            const creator = Array.isArray(doc.creator) ? doc.creator.join(', ') : doc.creator;
-            const publisher = Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher;
-            const isbn = Array.isArray(doc.isbn) ? getBestIsbn(doc.isbn) : (doc.isbn || null);
-
-            return {
+            return docs.filter(d => d && d.title).map(doc => ({
                 source: 'Internet Archive',
-                title: doc.title || 'Título sin especificar',
-                authors: creator || null,
+                title: doc.title,
+                authors: (Array.isArray(doc.creator) ? doc.creator.join(', ') : doc.creator) || null,
                 publishYear: doc.year || null,
-                publisher: publisher || null,
-                isbn,
-                coverUrl: doc.identifier ? `https://archive.org/services/img/${doc.identifier}` : null
+                publisher: (Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher) || null,
+                isbn: Array.isArray(doc.isbn) ? getBestIsbn(doc.isbn) : (doc.isbn || null),
+                coverUrl: doc.identifier ? `https://archive.org/services/img/${doc.identifier}` : null,
+                synopsis: null
+            }));
+        }
+
+        // ── ISBNdb (4ª fuente) ───────────────────────────────────────────────────
+        // La clave vive en el campo de Configuración y en localStorage, nunca en este
+        // archivo: así el repositorio puede ser público sin filtrar credenciales.
+        const ISBNDB_API_KEY_STORAGE = 'validador_isbndb_api_key_v1';
+        function getIsbndbKey() {
+            const input = document.getElementById('isbndbApiKeyInput');
+            return input ? input.value.trim() : '';
+        }
+
+        function mapIsbndbBook(book) {
+            if (!book || !book.title) return null;
+            const fecha = String(book.date_published || '');
+            const anio = (fecha.match(/\d{4}/) || [])[0] || null;
+            return {
+                source: 'ISBNdb',
+                title: book.title,
+                authors: Array.isArray(book.authors) && book.authors.length ? book.authors.join(', ') : null,
+                publishYear: anio,
+                publisher: book.publisher || null,
+                isbn: book.isbn13 || book.isbn || book.isbn10 || null,
+                coverUrl: book.image || null,
+                synopsis: book.synopsis || null
             };
         }
 
-        // Busca en OpenLibrary; si no hay resultado, recurre a Google Books y, como último
-        // recurso, al catálogo del Internet Archive. Valida la coincidencia por similitud de
-        // texto contra el título buscado.
+        async function fetchIsbndb(title, signal) {
+            const key = getIsbndbKey();
+            if (!key) return [];   // sin clave, la fuente no participa
+            const url = `${ISBNDB_SEARCH_URL}/${encodeURIComponent(title)}?page=1&pageSize=${CANDIDATES_PER_SOURCE}&column=title`;
+            const data = await isbndbLimiter(() => fetchJson(url, signal, REQUEST_TIMEOUT_MS, { Authorization: key }), signal);
+            if (!data || !Array.isArray(data.books)) return [];
+            return data.books.map(mapIsbndbBook).filter(Boolean);
+        }
+
+        // ── Búsqueda combinada: competencia por similitud, no cascada por disponibilidad ──
+        // La versión anterior consultaba OpenLibrary y, SOLO si no devolvía nada, pasaba a
+        // Google Books e Internet Archive. El problema es que "no devolver nada" y "devolver
+        // el libro equivocado" son cosas distintas: si OpenLibrary devolvía un libro que no
+        // era, la cascada se cortaba ahí y las otras dos fuentes nunca se consultaban. Como
+        // OpenLibrary tiene cobertura pobre en español pero casi siempre responde ALGO ante
+        // palabras comunes, la fuente más débil para este acervo era la que más veces ganaba
+        // y bloqueaba a las demás: la app anunciaba varias fuentes y operaba con una.
+        //
+        // Ahora se consultan en orden de calidad esperada para el acervo escolar mexicano,
+        // acumulando candidatos, y gana el de mayor similitud venga de donde venga. El corte
+        // temprano (EARLY_STOP_SIMILARITY) evita gastar cuota cuando ya hay una coincidencia
+        // prácticamente exacta.
+        const TITLE_SOURCES = [
+            { name: 'ISBNdb', fetch: fetchIsbndb },
+            { name: 'OpenLibrary', fetch: fetchOpenLibrary },
+            { name: 'Google Books', fetch: fetchGoogleBooks },
+            { name: 'Internet Archive', fetch: fetchInternetArchive }
+        ];
+
+        // Puntúa una lista de candidatos contra el título buscado y devuelve el mejor.
+        function pickBestCandidate(normQuery, candidates) {
+            let best = null, bestSim = -1;
+            candidates.forEach(c => {
+                const sim = similarityFromNormalized(normQuery, normalizeText(c.title));
+                if (sim > bestSim) { bestSim = sim; best = c; }
+            });
+            return best ? { candidate: best, similarity: bestSim } : null;
+        }
+
         async function combinedLookup(title, signal) {
             const norm = normalizeText(title);
             const cacheKey = norm || title;
             if (titleCache.has(cacheKey)) return titleCache.get(cacheKey);
 
-            let candidate = null;
-            let olFailed = false, gbFailed = false, iaFailed = false;
+            let best = null;
+            let sourcesTried = 0, sourcesFailed = 0;
 
-            try {
-                candidate = await withRetries(() => fetchOpenLibrary(title, signal), signal);
-            } catch (e) {
-                if (e.name === 'AbortError') throw e;
-                olFailed = true;
-            }
-
-            if (!candidate) {
+            for (const source of TITLE_SOURCES) {
+                let candidates = [];
                 try {
-                    candidate = await withRetries(() => fetchGoogleBooks(title, signal), signal);
+                    candidates = await withRetries(() => source.fetch(title, signal), signal);
                 } catch (e) {
                     if (e.name === 'AbortError') throw e;
-                    gbFailed = true;
+                    sourcesFailed++;
+                    sourcesTried++;
+                    continue;
                 }
-            }
+                // Una fuente sin clave (ISBNdb) devuelve [] sin haberse consultado: no cuenta
+                // ni como intento ni como fallo, para no marcar "Error de Red" falsamente.
+                if (!Array.isArray(candidates)) candidates = [];
+                if (source.name === 'ISBNdb' && !getIsbndbKey()) continue;
+                sourcesTried++;
 
-            if (!candidate) {
-                try {
-                    candidate = await withRetries(() => fetchInternetArchive(title, signal), signal);
-                } catch (e) {
-                    if (e.name === 'AbortError') throw e;
-                    iaFailed = true;
-                }
+                const scored = pickBestCandidate(norm, candidates);
+                if (scored && (!best || scored.similarity > best.similarity)) best = scored;
+                if (best && best.similarity >= EARLY_STOP_SIMILARITY) break;
             }
 
             let result;
-            if (candidate) {
-                const sim = similarityRatio(title, candidate.title);
-                if (sim < MIN_ACCEPTABLE_SIMILARITY) {
-                    result = { found: false };
-                } else {
-                    result = Object.assign({}, candidate, {
-                        found: true,
-                        similarity: sim,
-                        confidence: sim >= STRONG_SIMILARITY ? 'valid' : 'review'
-                    });
-                }
+            if (best && best.similarity >= MIN_ACCEPTABLE_SIMILARITY) {
+                result = Object.assign({}, best.candidate, {
+                    found: true,
+                    similarity: best.similarity,
+                    confidence: best.similarity >= STRONG_SIMILARITY ? 'valid' : 'review'
+                });
             } else {
-                result = { found: false, networkError: olFailed && gbFailed && iaFailed };
+                // networkError solo si TODAS las fuentes realmente consultadas fallaron:
+                // que ninguna conozca el libro es un resultado legítimo, no un error de red.
+                result = { found: false, networkError: sourcesTried > 0 && sourcesFailed === sourcesTried };
             }
 
             titleCache.set(cacheKey, result);
@@ -895,6 +1137,18 @@
         const GRADO_OPTIONS = ['1°', '2°', '3°', '4°', '5°', '6°'];
         const GENERO_OPTIONS = ['Informativo', 'Literario'];
 
+        // ── Plantilla de exportación sustituible (Bloque C) ──────────────────────
+        // La plantilla embebida es la de Molino de Rosas. Para que otra escuela pueda usar
+        // la app sin editar código, se permite cargar una propia; se guarda en localStorage
+        // (en Base64, igual que la incluida) y a partir de ahí manda sobre la embebida,
+        // tanto para las listas de clasificación como para la exportación.
+        const CUSTOM_TEMPLATE_STORAGE = 'validador_plantilla_personalizada_v1';
+        let customTemplateB64 = null;
+
+        function getTemplateB64() {
+            return customTemplateB64 || INVENTARIO_TEMPLATE_B64;
+        }
+
         let classifierDataPromise = null;
         let classifierDataCache = null;
         // Lee, UNA sola vez, las listas reales de "Clasificador SEP" y "Clasificador SEP - Rincón"
@@ -903,7 +1157,7 @@
         function getClassifierData() {
             if (classifierDataPromise) return classifierDataPromise;
             classifierDataPromise = (async () => {
-                const buffer = base64ToArrayBuffer(INVENTARIO_TEMPLATE_B64);
+                const buffer = base64ToArrayBuffer(getTemplateB64());
                 const wb = await XlsxPopulate.fromDataAsync(buffer);
 
                 const wsGeneral = wb.sheet('Clasificador SEP');
@@ -938,15 +1192,32 @@
             return classifierDataPromise;
         }
 
-        // Carga las listas de clasificación desde que arranca la app (no hasta que el
-        // usuario intente clasificar), y cuando estén listas, refresca las columnas de
-        // TODAS las filas que ya se hayan renderizado con el "Cargando..." de por medio.
-        getClassifierData().then(data => {
-            classifierDataCache = data;
-            records.forEach(r => { if (r.status === 'valid' || r.status === 'review') renderRow(r); });
-        }).catch(err => {
-            console.error('No se pudieron leer las listas de clasificación de la plantilla:', err);
-        });
+        // Antes esto corría al arrancar la página: decodificaba ~180 KB de Base64 y parseaba
+        // el XLSX completo con XlsxPopulate en cada carga, se fuera a clasificar o no. Ahora
+        // se dispara la primera vez que hace falta pintar las columnas del Motor 4 (o al
+        // cambiar de plantilla), y cuando termina refresca las filas que quedaron con el
+        // "Cargando..." de por medio.
+        let classifierLoadStarted = false;
+        function ensureClassifierData() {
+            if (classifierLoadStarted) return;
+            classifierLoadStarted = true;
+            getClassifierData().then(data => {
+                classifierDataCache = data;
+                records.forEach(r => { if (r.status === 'valid' || r.status === 'review') renderRow(r); });
+            }).catch(err => {
+                console.error('No se pudieron leer las listas de clasificación de la plantilla:', err);
+                showToast('No se pudieron leer las listas de clasificación de la plantilla. Revisa que el archivo tenga las hojas "Clasificador SEP" y "Clasificador SEP - Rincón".', 'error');
+            });
+        }
+
+        // Al cambiar de plantilla hay que volver a leer las listas desde cero: las categorías
+        // oficiales de la plantilla nueva pueden no ser las mismas.
+        function resetClassifierData() {
+            classifierDataPromise = null;
+            classifierDataCache = null;
+            classifierLoadStarted = false;
+            ensureClassifierData();
+        }
 
         function pendingClassifyCount() {
             return records.filter(r => (r.status === 'valid' || r.status === 'review') && !(r.manualFields && r.manualFields.audited)).length;
@@ -1025,6 +1296,7 @@
                 return '<td colspan="6" class="text-center text-slate-300 text-xs">—</td>';
             }
             if (!classifierDataCache) {
+                ensureClassifierData(); // primera fila clasificable de la sesión: recién aquí se lee la plantilla
                 return '<td colspan="6" class="text-center text-slate-400 text-[11px] p-2">Cargando listas de clasificación de la plantilla...</td>';
             }
             const data = classifierDataCache;
@@ -1201,8 +1473,22 @@
         // Cascada de búsqueda por ISBN. El ISBN es un identificador exacto, así que si una
         // fuente lo resuelve se considera 100% confiable (a diferencia de la búsqueda por
         // título, aquí no hace falta validar por similitud).
+        // ISBNdb por ISBN: consulta el identificador exacto contra su ficha. Va primero en
+        // la cascada porque es la fuente que más veces resuelve ediciones mexicanas, y
+        // además es la única que devuelve sinopsis de forma consistente.
+        async function fetchIsbndbByISBN(isbn, signal) {
+            const key = getIsbndbKey();
+            if (!key) return null;
+            const url = `${ISBNDB_BOOK_URL}/${encodeURIComponent(isbn)}`;
+            const data = await isbndbLimiter(() => fetchJson(url, signal, REQUEST_TIMEOUT_MS, { Authorization: key }), signal);
+            const mapped = data && data.book ? mapIsbndbBook(data.book) : null;
+            if (mapped && !mapped.isbn) mapped.isbn = isbn;
+            return mapped;
+        }
+
         async function lookupByISBN(isbn, signal) {
             const fetchers = [
+                () => fetchIsbndbByISBN(isbn, signal),
                 () => fetchOpenLibraryByISBN(isbn, signal),
                 () => fetchGoogleBooksByISBN(isbn, signal),
                 () => fetchInternetArchiveByISBN(isbn, signal)
@@ -1225,12 +1511,7 @@
         // inicial) exclusivamente para completar esos campos, nunca para
         // sobrescribir un dato que ya existe.
         // ============================================================
-        const TITLE_FETCHERS = {
-            'OpenLibrary': fetchOpenLibrary,
-            'Google Books': fetchGoogleBooks,
-            'Internet Archive': fetchInternetArchive
-        };
-        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año' };
+        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año', synopsis: 'Reseña' };
 
         async function fillMissingFields(record, signal) {
             const d = record.apiData;
@@ -1240,32 +1521,35 @@
             // (coverUrl siempre nace en null ahí) — sin incluirlo aquí, esta función nunca
             // llegaba a buscar en la web para esos registros, y la portada se quedaba vacía
             // para siempre. Bug real, reportado con captura de pantalla.
-            let missing = ['authors', 'publisher', 'isbn', 'publishYear', 'coverUrl'].filter(f => !d[f]);
+            let missing = ['authors', 'publisher', 'isbn', 'publishYear', 'coverUrl', 'synopsis'].filter(f => !d[f]);
             if (missing.length === 0) return;
 
-            const otherSources = Object.keys(TITLE_FETCHERS).filter(s => s !== d.source);
-            for (const sourceName of otherSources) {
+            const normQuery = normalizeText(record.originalTitle);
+            const otherSources = TITLE_SOURCES.filter(s => s.name !== d.source);
+            for (const source of otherSources) {
                 if (missing.length === 0) break;
-                let candidate = null;
+                if (source.name === 'ISBNdb' && !getIsbndbKey()) continue;
+
+                let candidates = [];
                 try {
-                    candidate = await withRetries(() => TITLE_FETCHERS[sourceName](record.originalTitle, signal), signal);
+                    candidates = await withRetries(() => source.fetch(record.originalTitle, signal), signal);
                 } catch (e) {
                     if (e.name === 'AbortError') throw e;
                     continue;
                 }
-                if (!candidate) continue;
+                const scored = pickBestCandidate(normQuery, candidates || []);
                 // Solo se confía en el dato de relleno si el título que devolvió esa fuente
-                // sigue pareciéndose al título original buscado (evita mezclar datos de otro libro).
-                const sim = similarityRatio(record.originalTitle, candidate.title);
-                if (sim < MIN_ACCEPTABLE_SIMILARITY) continue;
+                // sigue pareciéndose al título buscado (evita mezclar datos de otro libro).
+                if (!scored || scored.similarity < MIN_ACCEPTABLE_SIMILARITY) continue;
+                const candidate = scored.candidate;
 
                 missing = missing.filter(field => {
                     if (candidate[field]) {
                         d[field] = candidate[field];
                         if (field === 'coverUrl') {
-                            logAudit('completado', `"${d.title}": portada recuperada automáticamente usando ${sourceName}.`);
+                            logAudit('completado', `"${d.title}": portada recuperada automáticamente usando ${source.name}.`);
                         } else {
-                            logAudit('completado', `"${d.title}": campo "${FIELD_LABELS[field]}" completado automáticamente usando ${sourceName} (faltaba tras la búsqueda inicial en ${d.source}).`);
+                            logAudit('completado', `"${d.title}": campo "${FIELD_LABELS[field]}" completado automáticamente usando ${source.name} (faltaba tras la búsqueda inicial en ${d.source}).`);
                         }
                         return false;
                     }
@@ -1419,7 +1703,10 @@
             }
 
             toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 toast-enter max-w-sm z-50 border border-white/10`;
-            toast.innerHTML = `${icon}<span class="text-sm font-medium tracking-wide">${message}</span>`;
+            // Los mensajes incluyen títulos de libros venidos de APIs y de archivos subidos.
+            // logAudit ya escapaba; aquí no, y un título con comillas o con "<" rompía la
+            // interfaz. Se escapa igual que en la bitácora, por coherencia y por seguridad.
+            toast.innerHTML = `${icon}<span class="text-sm font-medium tracking-wide">${escapeHtml(message)}</span>`;
 
             toastContainer.appendChild(toast);
             setTimeout(() => {
@@ -1510,7 +1797,11 @@
             const tr = target.closest('tr');
             if (!tr) return;
             const record = recordById.get(Number(tr.dataset.recordId));
-            if (!record || record.status !== 'review') return;
+            // Antes esto exigía status === 'review': las filas "Validado" eran de solo
+            // lectura. Combinado con los falsos positivos de la métrica anterior, un libro
+            // equivocado marcado como validado quedaba BLOQUEADO y llegaba así a la
+            // plantilla oficial. Ahora cualquier fila con datos es corregible a mano.
+            if (!record || (record.status !== 'review' && record.status !== 'valid')) return;
 
             const field = target.dataset.editableField;
             const newValue = target.textContent.trim();
@@ -1608,24 +1899,31 @@
                        </span>`;
 
                 const coverHtml = apiData.coverUrl
-                    ? `<img src="${apiData.coverUrl}" loading="lazy" class="w-12 h-16 object-cover rounded shadow border border-slate-200 cover-image" alt="Portada" onerror="this.outerHTML='<div class=\\'w-12 h-16 bg-slate-100 border border-slate-200 rounded flex items-center justify-center\\'><span class=\\'text-[8px] text-slate-400\\'>Sin Img</span></div>'">`
+                    ? `<img src="${escapeHtml(apiData.coverUrl)}" loading="lazy" class="w-12 h-16 object-cover rounded shadow border border-slate-200 cover-image" alt="Portada" onerror="this.outerHTML='<div class=\\'w-12 h-16 bg-slate-100 border border-slate-200 rounded flex items-center justify-center\\'><span class=\\'text-[8px] text-slate-400\\'>Sin Img</span></div>'">`
                     : `<div class="w-12 h-16 bg-slate-100 border border-slate-200 rounded shadow-sm flex items-center justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg></div>`;
 
-                // Mejora #2: las filas "Revisar" se vuelven editables inline; las "Validado" quedan
-                // de solo lectura (ya pasaron el umbral de confianza, no se tocan por accidente).
-                const editable = !isValid;
-                const titleHtml = editable
-                    ? editableSpan('title', apiData.title, 'Título', 'font-bold text-slate-800 text-sm mb-0.5 block')
-                    : `<span class="font-bold text-slate-800 text-sm mb-0.5 truncate" title="${escapeHtml(apiData.title)}">${escapeHtml(apiData.title)}</span>`;
-                const authorsHtml = editable
-                    ? `<div class="text-xs text-slate-600 mb-1">👤 ${editableSpan('authors', apiData.authors, 'no verificado', '')}</div>`
-                    : `<span class="text-xs text-slate-600 mb-1 truncate" title="${escapeHtml(apiData.authors || 'No verificado')}">👤 ${apiData.authors ? escapeHtml(apiData.authors) : '<span class="text-rose-400 italic">no verificado</span>'}</span>`;
-                const publisherHtml = editable
-                    ? `🏢 ${editableSpan('publisher', apiData.publisher, 'no verificado', 'bg-slate-100 px-1.5 py-0.5 rounded')}`
-                    : `<span class="bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[120px]" title="${escapeHtml(apiData.publisher || 'No verificado')}">🏢 ${apiData.publisher ? escapeHtml(apiData.publisher) : '<span class="text-rose-400 italic">no verificado</span>'}</span>`;
-                const yearHtml = editable
-                    ? `📅 ${editableSpan('publishYear', apiData.publishYear, 'no verificado', '')}`
-                    : `<span>📅 ${apiData.publishYear ? escapeHtml(apiData.publishYear) : '<span class="text-rose-400 italic">no verificado</span>'}</span>`;
+                // Toda fila con datos es editable inline. Antes solo lo eran las "Revisar":
+                // las "Validado" quedaban bloqueadas, lo que convertía un falso positivo del
+                // algoritmo en un dato incorregible. La distinción sigue siendo visible en la
+                // etiqueta de estado y en el porcentaje; lo que ya no hace es impedir la
+                // corrección humana, que es la última línea de defensa del inventario.
+                const titleHtml = editableSpan('title', apiData.title, 'Título', 'font-bold text-slate-800 text-sm mb-0.5 block');
+                const authorsHtml = `<div class="text-xs text-slate-600 mb-1">👤 ${editableSpan('authors', apiData.authors, 'no verificado', '')}</div>`;
+                const publisherHtml = `🏢 ${editableSpan('publisher', apiData.publisher, 'no verificado', 'bg-slate-100 px-1.5 py-0.5 rounded')}`;
+                const yearHtml = `📅 ${editableSpan('publishYear', apiData.publishYear, 'no verificado', '')}`;
+                // La reseña puede ser un párrafo entero. Va en un <details> plegado para que
+                // no descuadre el alto de la fila, pero usando el mismo editableSpan que los
+                // demás campos: se corrige a mano y se confirma al perder el foco, sin
+                // mecanismo aparte que mantener.
+                const synopsisHtml = `
+                    <details class="mt-1 w-full">
+                        <summary class="text-[10px] text-slate-500 cursor-pointer hover:text-slate-700 select-none">
+                            📖 Reseña ${apiData.synopsis ? `<span class="text-emerald-600 font-semibold">(${apiData.synopsis.length} caracteres)</span>` : '<span class="text-rose-400 italic">no verificada</span>'}
+                        </summary>
+                        <div class="text-[11px] text-slate-600 mt-1 leading-relaxed max-h-32 overflow-y-auto pr-1">
+                            ${editableSpan('synopsis', apiData.synopsis, 'Sin reseña — puedes escribirla aquí', 'block')}
+                        </div>
+                    </details>`;
 
                 bookUI = `
                     <div class="flex items-start gap-4 py-2">
@@ -1638,8 +1936,9 @@
                                 ${yearHtml}
                                 ${sourceBadge(apiData.source)}
                                 ${originBadge(record.origin)}
-                                ${editable ? '<span class="text-[10px] text-amber-600 font-semibold">✎ Editable — corrige y haz clic fuera para guardar</span>' : ''}
+                                <span class="text-[10px] text-amber-600 font-semibold">✎ Editable — corrige y haz clic fuera para guardar</span>
                             </div>
+                            ${synopsisHtml}
                         </div>
                     </div>
                 `;
@@ -1907,14 +2206,113 @@
         });
 
         // Clave de Google Books: cargar la guardada (si existe) y persistir cada cambio
-        (function initGoogleApiKeyField() {
-            const input = document.getElementById('googleApiKeyInput');
+        // ============================================================
+        // Panel de configuración (Bloque C — replicabilidad)
+        // ============================================================
+        // Claves de API, URL del catálogo histórico y plantilla de exportación: todo lo que
+        // antes estaba cableado a una sola escuela. Los valores viven en localStorage del
+        // navegador, nunca dentro de este archivo, para que el repositorio pueda ser público.
+        (function initConfigPanel() {
+            // ── Claves de API ──
+            function bindKeyField(inputId, storageKey, onChange) {
+                const input = document.getElementById(inputId);
+                if (!input) return null;
+                try {
+                    const saved = localStorage.getItem(storageKey);
+                    if (saved) input.value = saved;
+                } catch (e) { /* localStorage no disponible (modo privado, etc.) — se ignora */ }
+                input.addEventListener('input', () => {
+                    try { localStorage.setItem(storageKey, input.value.trim()); } catch (e) { /* no crítico */ }
+                    if (onChange) onChange(input.value.trim());
+                });
+                return input;
+            }
+
+            const isbndbStatus = document.getElementById('isbndbStatus');
+            const configBadge = document.getElementById('configSummaryBadge');
+
+            function refreshIsbndbStatus(key) {
+                const activa = !!key;
+                isbndbStatus.textContent = activa
+                    ? 'ISBNdb activo — se consulta primero por ser la fuente con mejor cobertura en español (60 consultas/min, 5,000/día).'
+                    : 'Sin clave: ISBNdb queda desactivado y la app usa las otras 3 fuentes.';
+                isbndbStatus.classList.toggle('text-emerald-600', activa);
+                isbndbStatus.classList.toggle('text-slate-400', !activa);
+                configBadge.textContent = `${activa ? 4 : 3} fuentes activas`;
+                configBadge.classList.toggle('bg-emerald-100', activa);
+                configBadge.classList.toggle('text-emerald-700', activa);
+                configBadge.classList.toggle('bg-slate-100', !activa);
+                configBadge.classList.toggle('text-slate-500', !activa);
+            }
+
+            const isbndbInput = bindKeyField('isbndbApiKeyInput', ISBNDB_API_KEY_STORAGE, refreshIsbndbStatus);
+            bindKeyField('googleApiKeyInput', GOOGLE_API_KEY_STORAGE, null);
+            refreshIsbndbStatus(isbndbInput ? isbndbInput.value.trim() : '');
+            // Si la clave aún no está puesta, se abre el panel para que se vea de entrada
+            // que hay una 4ª fuente disponible, en vez de esconderla tras un desplegable.
+            if (isbndbInput && !isbndbInput.value.trim()) {
+                document.getElementById('configPanel').open = true;
+            }
+
+            // ── URL del catálogo histórico (la lee catalogo_historico.js) ──
+            const catalogoInput = document.getElementById('catalogoUrlInput');
+            catalogoInput.value = getCatalogoUrl();
+            catalogoInput.addEventListener('change', () => {
+                const url = catalogoInput.value.trim();
+                try { localStorage.setItem(CATALOGO_URL_STORAGE, url); } catch (e) { /* no crítico */ }
+                showToast('URL del catálogo histórico actualizada. Recarga la página para volver a descargarlo.', 'info');
+            });
+
+            // ── Plantilla de exportación propia ──
+            const fileInput = document.getElementById('templateFileInput');
+            const uploadBtn = document.getElementById('templateUploadBtn');
+            const resetBtn = document.getElementById('templateResetBtn');
+            const status = document.getElementById('templateStatus');
+
+            function refreshTemplateStatus() {
+                const propia = !!customTemplateB64;
+                status.textContent = propia
+                    ? 'Usando tu propia plantilla. Las listas de clasificación y la exportación salen de ese archivo.'
+                    : 'Usando la plantilla incluida (Biblioteca Viva — Molino de Rosas).';
+                status.classList.toggle('text-teal-700', propia);
+                status.classList.toggle('text-slate-400', !propia);
+                resetBtn.classList.toggle('hidden', !propia);
+            }
+
             try {
-                const saved = localStorage.getItem(GOOGLE_API_KEY_STORAGE);
-                if (saved) input.value = saved;
-            } catch (e) { /* localStorage no disponible (modo privado, etc.) — se ignora */ }
-            input.addEventListener('input', () => {
-                try { localStorage.setItem(GOOGLE_API_KEY_STORAGE, input.value.trim()); } catch (e) { /* no crítico */ }
+                const saved = localStorage.getItem(CUSTOM_TEMPLATE_STORAGE);
+                if (saved) customTemplateB64 = saved;
+            } catch (e) { /* no crítico */ }
+            refreshTemplateStatus();
+
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', () => {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // El resultado viene como data URL; solo interesa la parte Base64.
+                    const b64 = String(reader.result).split(',')[1] || '';
+                    customTemplateB64 = b64;
+                    try { localStorage.setItem(CUSTOM_TEMPLATE_STORAGE, b64); }
+                    catch (e) {
+                        showToast('La plantilla se usará en esta sesión, pero era demasiado grande para guardarla en el navegador: habrá que volver a cargarla la próxima vez.', 'info');
+                    }
+                    resetClassifierData();
+                    refreshTemplateStatus();
+                    showToast(`Plantilla "${file.name}" cargada.`, 'success');
+                };
+                reader.onerror = () => showToast('No se pudo leer el archivo de plantilla.', 'error');
+                reader.readAsDataURL(file);
+                fileInput.value = ''; // permite volver a elegir el mismo archivo
+            });
+
+            resetBtn.addEventListener('click', () => {
+                customTemplateB64 = null;
+                try { localStorage.removeItem(CUSTOM_TEMPLATE_STORAGE); } catch (e) { /* no crítico */ }
+                resetClassifierData();
+                refreshTemplateStatus();
+                showToast('Volviendo a la plantilla incluida.', 'success');
             });
         })();
 
@@ -2018,7 +2416,7 @@
         exportBtn.addEventListener('click', () => {
             if (records.length === 0) return;
 
-            const rows = [['Título Buscado', 'Título Encontrado', 'Autores', 'Editorial', 'Año', 'ISBN Oficial', 'Fuente', 'Similitud', 'Estado', 'Motor de Origen', 'Procedencia SEP', 'Categoría SEP']];
+            const rows = [['Título Buscado', 'Título Encontrado', 'Autores', 'Editorial', 'Año', 'ISBN Oficial', 'Reseña', 'Fuente', 'Similitud', 'Estado', 'Motor de Origen', 'Procedencia SEP', 'Categoría SEP']];
             const statusLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado', pending: 'Pendiente' };
             const originLabel = { titulo: 'Motor 1 (Título)', isbn: 'Motor 2 (ISBN)', importacion: 'Motor 3 (Archivo)' };
 
@@ -2030,10 +2428,10 @@
                 if (d && d.found) {
                     rows.push([
                         r.originalTitle, d.title, d.authors || '', d.publisher || '', d.publishYear ? String(d.publishYear) : '',
-                        d.isbn || '', d.source || '', `${Math.round(d.similarity * 100)}%`, statusLabel[r.status] || r.status, originLabel[r.origin] || '', procedenciaCsv, categoriaCsv
+                        d.isbn || '', d.synopsis || '', d.source || '', `${Math.round(d.similarity * 100)}%`, statusLabel[r.status] || r.status, originLabel[r.origin] || '', procedenciaCsv, categoriaCsv
                     ]);
                 } else {
-                    rows.push([r.originalTitle, '', '', '', '', '', '', '', statusLabel[r.status] || r.status, originLabel[r.origin] || '', '', '']);
+                    rows.push([r.originalTitle, '', '', '', '', '', '', '', '', statusLabel[r.status] || r.status, originLabel[r.origin] || '', '', '']);
                 }
             });
 
@@ -2069,7 +2467,7 @@
                 const d = r.apiData;
                 const found = d && d.found;
                 const imageTag = (found && d.coverUrl)
-                    ? `<img src="${d.coverUrl}" width="80" height="120" style="display:block; margin:auto;" alt="Portada" />`
+                    ? `<img src="${escapeHtml(d.coverUrl)}" width="80" height="120" style="display:block; margin:auto;" alt="Portada" />`
                     : `<i>Sin portada</i>`;
                 const estadoLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado' }[r.status] || r.status;
 
@@ -2224,7 +2622,7 @@
                 const d = r.apiData;
                 const found = d && d.found;
                 const estadoLabel = { valid: 'Validado', review: 'Revisar', notfound: 'No Encontrado' }[r.status] || r.status;
-                const portadaCell = (found && d.coverUrl) ? `=IMAGE("${d.coverUrl}")` : '';
+                const portadaCell = (found && d.coverUrl) ? `=IMAGE("${String(d.coverUrl).replace(/"/g, '')}")` : '';
                 rows.push([
                     String(i + 1),
                     portadaCell,
@@ -2267,7 +2665,12 @@
             'Similitud % (aux.)',
             'Estado de Validación (aux.)',
             'Campos sin verificar — revisión manual genuina (aux.)',
-            'Portada de catálogo — imagen real vía =IMAGE(), requiere Excel 365/2024+ (aux.)'
+            'Portada de catálogo — imagen real vía =IMAGE(), requiere Excel 365/2024+ (aux.)',
+            // La plantilla oficial va de A (Portada) a O (Observaciones) y NO tiene columna de
+            // reseña, así que la sinopsis que devuelve ISBNdb no cabe en ninguna columna
+            // oficial. Se deja aquí, en la zona auxiliar ámbar, para copiarla a donde
+            // corresponda sin alterar la estructura de la plantilla.
+            'Reseña / sinopsis — fuente: ISBNdb o Google Books (aux.)'
         ];
         const AUX_HEADER_FILL = 'F59E0B'; // ámbar: distinto del teal oficial, para que se note que no es parte del inventario
 
@@ -2295,7 +2698,7 @@
             // (segundo clic dentro de los siguientes segundos).
             const pending = pendingClassifyCount();
             if (pending > 0 && !exportOverrideArmed) {
-                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa "Auditar como Rincón" o "Clasificar como General" — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
+                showToast(`Faltan ${pending} libro(s) por clasificar (SEP). Usa el botón "Ir a clasificar" de la barra MOTOR 4, o el Motor 5 para traer la clasificación del catálogo histórico — o vuelve a pulsar Exportar en los próximos segundos para exportar de todas formas.`, 'error');
                 exportOverrideArmed = true;
                 setTimeout(() => { exportOverrideArmed = false; }, 8000);
                 return;
@@ -2307,7 +2710,7 @@
             exportInventarioBtn.innerHTML = '<span class="animate-pulse">Generando archivo...</span>';
 
             try {
-                const buffer = base64ToArrayBuffer(INVENTARIO_TEMPLATE_B64);
+                const buffer = base64ToArrayBuffer(getTemplateB64());
                 const wb = await XlsxPopulate.fromDataAsync(buffer);
                 const ws = wb.sheet('Inventario');
 
@@ -2358,8 +2761,10 @@
                     ws.cell(row, AUX_START_COL + 3).value(estadoLabel);
                     ws.cell(row, AUX_START_COL + 4).value(camposFaltantes);
                     if (found && d.coverUrl) {
-                        ws.cell(row, AUX_START_COL + 5).formula(`IMAGE("${d.coverUrl}")`);
+                        // Se escapan las comillas de la URL: una comilla suelta rompería la fórmula entera.
+                        ws.cell(row, AUX_START_COL + 5).formula(`IMAGE("${String(d.coverUrl).replace(/"/g, '')}")`);
                     }
+                    if (found && d.synopsis) ws.cell(row, AUX_START_COL + 6).value(String(d.synopsis));
                 });
 
                 // Extender fórmulas B (N°) y N (Color) más allá de la fila 401, si el lote es más grande
@@ -2380,7 +2785,7 @@
                         ws._dataValidations[newAddr] = {
                             name: 'dataValidation',
                             attributes: { type: 'list', allowBlank: true, sqref: newAddr },
-                            children: [{ name: 'formula1', atrributes: {}, children: [formula1] }]
+                            children: [{ name: 'formula1', attributes: {}, children: [formula1] }]
                         };
                     });
                 }
@@ -2447,7 +2852,18 @@
             normalizeIsbn,
             isValidIsbn,
             similarityRatio,
+            // Variante que recibe los títulos YA normalizados. La usa el Motor 5 para no
+            // volver a normalizar miles de entradas del catálogo en cada comparación.
+            similarityFromNormalized,
             escapeHtml,
+
+            // Persistencia de sesión. Antes NO estaba expuesta, y era un hueco real: el
+            // Motor 5 aplicaba clasificación SEP a decenas de registros y nada de eso se
+            // guardaba — al recargar la pestaña, ese trabajo desaparecía completo.
+            saveSessionToStorage,
+
+            // Configuración compartida con los módulos externos
+            getCatalogoUrl,
 
             // Relleno de huecos vía las 3 fuentes (Smart Fetching del Motor 3 reutiliza esto)
             fillMissingFields,
