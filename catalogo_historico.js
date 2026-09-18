@@ -105,9 +105,6 @@
         return loadPromise;
     }
 
-    // ============================================================
-    // Búsqueda de la mejor coincidencia para un título dado
-    // ============================================================
     function findBestMatch(title) {
         const norm = V.normalizeText(title);
         if (!norm) return null;
@@ -190,6 +187,54 @@
         const b = buildCandidateFields(match.second);
         return ['grado', 'generoSEP', 'categoriaSEP', 'serie'].some(f => (a[f] || '') !== (b[f] || ''));
     }
+
+    // ============================================================
+    // Fuente primaria — se consulta ANTES que las APIs web
+    // ============================================================
+    // QUÉ APORTA Y QUÉ NO, y por qué.
+    //
+    // Aporta: la CERTEZA de que el título pertenece al acervo Rincón, su RESEÑA oficial y
+    // su CLASIFICACIÓN SEP. Ninguna API web puede saber esas tres cosas.
+    //
+    // NO aporta autor, editorial, año ni ISBN, aunque el catálogo los tenga. El motivo está
+    // medido, no supuesto: en el JSON actual el bloque de datos de edición está CORRIDO
+    // respecto a la columna de títulos, con un desfase variable de 1 a 2 filas. Verificado
+    // contra ISBNdb sobre una muestra de 30 fichas, 20 de los 26 ISBN resolubles devolvían
+    // un libro distinto, y el título correcto aparecía en una fila vecina: el ISBN de la
+    // fila "Las semillas de calabaza" es en realidad el de "Stelaluna", que está una fila
+    // arriba. Adoptar esos campos metería datos equivocados al inventario oficial.
+    // Título, Reseña, Grado, Género, Categoría y Serie SÍ están alineados entre sí, y son
+    // los únicos campos que este módulo entrega.
+    //
+    // Si el catálogo se corrige en el origen, basta devolver aquí también los campos
+    // bibliográficos: el núcleo ya está preparado para recibirlos.
+    const PRIMARIA_THRESHOLD = 0.90; // afirmar "esto es del acervo Rincón" exige coincidencia alta
+
+    async function fuentePrimaria(title) {
+        // Si el catálogo aún no terminó de descargarse, se espera: vale más un segundo de
+        // espera que resolver el libro sin saber si pertenece al acervo.
+        if (!catalogEntries.length) {
+            try { await loadCatalog(); } catch (e) { return null; }
+        }
+        if (!catalogEntries.length) return null;
+
+        const match = findBestMatch(title);
+        if (!match || match.similarity < PRIMARIA_THRESHOLD) return null;
+
+        V.logAudit('completado', `"${title}": localizado en el catálogo oficial SEP (ciclo ${match.entry.Ciclo_Escolar || 'sin dato'}, coincidencia ${Math.round(match.similarity * 100)}%). De ahí se toman su reseña y su clasificación oficiales.`);
+
+        return {
+            title: match.entry['Título'],
+            synopsis: match.entry['Reseña'] || null,
+            similarity: match.similarity,
+            // La clasificación viaja salvo que dos fichas en competencia se contradigan
+            // (la misma guarda de ambigüedad que usa el botón del Motor 5).
+            clasificacion: esAmbiguo(match) ? null : buildCandidateFields(match.entry)
+        };
+    }
+
+    V.registerPrimarySource(fuentePrimaria);
+
     async function runMatchPipeline() {
         const btn = document.getElementById('catalogoHistoricoBtn');
         const originalLabel = btn.textContent;

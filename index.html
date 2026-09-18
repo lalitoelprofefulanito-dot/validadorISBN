@@ -910,10 +910,38 @@
             return best ? { candidate: best, similarity: bestSim } : null;
         }
 
+        // ── Fuente bibliográfica primaria (inversión de arquitectura) ────────────
+        // Un módulo externo puede registrarse como fuente PRIMARIA: se consulta antes que
+        // las cuatro APIs web. Existe porque para el acervo escolar mexicano las APIs no
+        // solo son redundantes, son peligrosas: hay obras distintas que comparten título
+        // exacto ("Adivina quién es" de Time Life en el acervo Rincón vs. una de Walt
+        // Disney/Everest en ISBNdb), y la defensa por similitud de títulos NO puede
+        // distinguirlas — los títulos coinciden al 100%. Un catálogo oficial sí sabe qué
+        // edición se distribuyó a las escuelas; una API general no tiene forma de saberlo.
+        // El núcleo no conoce qué fuente es: solo sabe que existe y qué contrato cumple.
+        let primarySource = null;
+        function registerPrimarySource(fn) { primarySource = fn; }
+
+        async function consultarFuentePrimaria(title) {
+            if (!primarySource) return null;
+            try {
+                return await primarySource(title);
+            } catch (e) {
+                console.error('La fuente primaria falló; se continúa con las fuentes web:', e);
+                return null;
+            }
+        }
+
         async function combinedLookup(title, signal) {
             const norm = normalizeText(title);
             const cacheKey = norm || title;
             if (titleCache.has(cacheKey)) return titleCache.get(cacheKey);
+
+            // PASO 1 — Fuente primaria (catálogo oficial). Aporta lo que ninguna API puede
+            // saber: si el libro pertenece al acervo Rincón, su reseña oficial y su
+            // clasificación SEP. NO aporta autor/editorial/año/ISBN — ver la nota en
+            // catalogo_historico.js sobre el corrimiento de esas columnas en el origen.
+            const primaria = await consultarFuentePrimaria(title);
 
             let best = null;
             let sourcesTried = 0, sourcesFailed = 0;
@@ -946,10 +974,46 @@
                     similarity: best.similarity,
                     confidence: best.similarity >= STRONG_SIMILARITY ? 'valid' : 'review'
                 });
+            } else if (primaria) {
+                // Ninguna fuente web conoce el libro, pero el catálogo oficial sí. Vale más
+                // un registro con título y reseña verificados que un "No encontrado": autor
+                // y editorial quedan en blanco, sin inventarse.
+                result = {
+                    found: true,
+                    source: 'Catálogo Histórico SEP',
+                    title: primaria.title,
+                    authors: null, publisher: null, publishYear: null, isbn: null, coverUrl: null,
+                    synopsis: primaria.synopsis || null,
+                    similarity: primaria.similarity,
+                    confidence: 'review'
+                };
+                logAudit('pendiente', `"${title}": ninguna fuente web lo conoce, pero sí aparece en el catálogo oficial SEP. Se registró con su reseña y clasificación oficiales; autor y editorial quedan en blanco para captura manual (no se inventaron).`);
             } else {
                 // networkError solo si TODAS las fuentes realmente consultadas fallaron:
                 // que ninguna conozca el libro es un resultado legítimo, no un error de red.
                 result = { found: false, networkError: sourcesTried > 0 && sourcesFailed === sourcesTried };
+            }
+
+            // PASO 2 — Enriquecer con lo que el catálogo sí puede afirmar.
+            if (result.found && primaria) {
+                result.enCatalogoOficial = true;
+                result.sepFields = primaria.clasificacion || null;
+                // La reseña del catálogo MANDA sobre la de las fuentes web. Está verificado
+                // que la columna Reseña sí corresponde a su título; en cambio, si la API
+                // devolvió otra obra homónima, su sinopsis describe el libro equivocado.
+                if (primaria.synopsis) result.synopsis = primaria.synopsis;
+
+                // Degradación deliberada de confianza. Se midió contra el acervo real: para
+                // títulos del catálogo Rincón, las APIs devuelven con frecuencia OTRA obra
+                // que comparte el título exacto (p. ej. "Adivina quién es" del acervo es de
+                // Time Life; ISBNdb devuelve una de Walt Disney/Everest). La similitud de
+                // títulos no puede detectarlo, porque los títulos coinciden al 100%. Por eso
+                // un libro del acervo nunca se da por "Validado" con datos web: se marca
+                // para revisión, que es editable, en lugar de fingir certeza.
+                if (result.source !== 'Catálogo Histórico SEP' && result.confidence === 'valid') {
+                    result.confidence = 'review';
+                    logAudit('pendiente', `"${title}": pertenece al acervo Rincón según el catálogo oficial, así que autor y editorial (tomados de ${result.source}) se marcan para revisión. En estos títulos las fuentes web devuelven con frecuencia otra obra del mismo nombre, y ninguna comparación automática puede distinguirlas.`);
+                }
             }
 
             titleCache.set(cacheKey, result);
@@ -1511,7 +1575,7 @@
         // inicial) exclusivamente para completar esos campos, nunca para
         // sobrescribir un dato que ya existe.
         // ============================================================
-        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año', synopsis: 'Reseña' };
+        const FIELD_LABELS = { authors: 'Autor', publisher: 'Editorial', isbn: 'ISBN', publishYear: 'Año', synopsis: 'Reseña', coverUrl: 'Portada' };
 
         async function fillMissingFields(record, signal) {
             const d = record.apiData;
@@ -1523,6 +1587,10 @@
             // para siempre. Bug real, reportado con captura de pantalla.
             let missing = ['authors', 'publisher', 'isbn', 'publishYear', 'coverUrl', 'synopsis'].filter(f => !d[f]);
             if (missing.length === 0) return;
+            // Un registro que solo existe en el catálogo no tiene identidad bibliográfica que
+            // completar por título: buscarla traería otra obra homónima, que es exactamente
+            // lo que se quiere evitar. Se deja en blanco para captura manual.
+            if (d.source === 'Catálogo Histórico SEP') return;
 
             const normQuery = normalizeText(record.originalTitle);
             const otherSources = TITLE_SOURCES.filter(s => s.name !== d.source);
@@ -1986,11 +2054,20 @@
                 record.apiData = apiData;
                 record.status = apiData.found ? apiData.confidence : 'notfound';
                 if (apiData.found) {
+                    // La clasificación SEP viene en el mismo movimiento cuando el libro se
+                    // identificó por catálogo: ya no hay que pulsar el Motor 5 aparte para
+                    // los libros del acervo Rincón.
+                    if (apiData.sepFields) {
+                        const aplicados = mergeManualFields(record, apiData.sepFields);
+                        if (aplicados.length > 0) {
+                            logAudit('completado', `"${apiData.title}": clasificación SEP tomada del catálogo oficial en la misma consulta (${aplicados.length} campo(s)).`);
+                        }
+                    }
                     // Auditoría + corrección automática: rellenar huecos con las otras fuentes
                     await fillMissingFields(record, signal);
                     const stillMissing = ['authors', 'publisher', 'isbn', 'publishYear'].filter(f => !record.apiData[f]);
                     if (stillMissing.length > 0) {
-                        logAudit('pendiente', `"${record.apiData.title}": no fue posible verificar ${stillMissing.map(f => FIELD_LABELS[f]).join(', ')} en ninguna de las 3 fuentes. Se deja en blanco (no se inventó el dato) — requiere revisión manual.`);
+                        logAudit('pendiente', `"${record.apiData.title}": no fue posible verificar ${stillMissing.map(f => FIELD_LABELS[f]).join(', ')} en ninguna de las fuentes disponibles. Se deja en blanco (no se inventó el dato) — requiere revisión manual.`);
                     }
                 }
             } catch (err) {
@@ -2865,7 +2942,11 @@
             // Configuración compartida con los módulos externos
             getCatalogoUrl,
 
-            // Relleno de huecos vía las 3 fuentes (Smart Fetching del Motor 3 reutiliza esto)
+            // Permite que un módulo se registre como fuente bibliográfica PRIMARIA,
+            // consultada antes que las APIs web. Ver combinedLookup().
+            registerPrimarySource,
+
+            // Relleno de huecos vía las fuentes web (el Smart Fetching del Motor 3 lo reutiliza)
             fillMissingFields,
 
             // Orquestación compartida (barra de progreso, bloqueo de UI, cancelación)

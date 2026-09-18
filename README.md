@@ -1,10 +1,6 @@
 # Validador Masivo de Títulos de Libros
 
-**▶ Úsalo aquí: https://lalitoelprofefulanito-dot.github.io/validadorISBN/**
-
 Herramienta de navegador para validar, enriquecer y consolidar inventarios bibliográficos escolares en lotes de hasta 1,000 títulos — sin backend, sin instalación, sin costo. Nació para automatizar la captura del proyecto **Biblioteca Viva** (Escuela Primaria Molino de Rosas), pero está construida para que cualquier escuela pueda usarla con su propia plantilla y su propio catálogo, sin tocar el código.
-
-Todo el procesamiento ocurre en el navegador de quien la usa. No hay servidor propio, no hay cuenta que crear y ningún dato del inventario sale hacia una base de datos ajena: las únicas conexiones son a las APIs públicas de consulta bibliográfica.
 
 ## Qué hace
 
@@ -18,7 +14,7 @@ Cruza tu lista de libros contra **4 fuentes públicas**, valida cada coincidenci
 | **2 — ISBN** | Lista de ISBN, uno por línea | Compara cada ISBN contra lo ya validado: si coincide, completa campos faltantes; si no existe, lo agrega como registro nuevo — nunca duplica |
 | **3 — Archivos** | Varios `.xlsx`/`.csv` (arrastrar y soltar) | Mapea las cabeceras contra los campos oficiales, consolida los archivos entre sí resolviendo conflictos por completitud, integra sin duplicados y solo busca en la web lo que sigue faltando |
 | **4 — Clasificación SEP** | La propia tabla | Agrega 6 columnas (Procedencia, Grado, Género, Categoría, Serie, Estado físico) con las listas **oficiales leídas en vivo de la plantilla**, más relleno rápido hacia abajo |
-| **5 — Catálogo histórico** | La propia tabla | Compara los títulos validados contra el Catálogo Histórico de Libros del Rincón y rellena la clasificación SEP cuando la coincidencia es inequívoca |
+| **5 — Catálogo histórico** | Automático, y también por botón | Consulta el Catálogo Histórico de Libros del Rincón **antes** que las fuentes web: reconoce si el título pertenece al acervo, trae su reseña y su clasificación SEP oficiales, y marca el registro para revisión cuando los datos de edición vienen de la web |
 
 Los cinco motores comparten los mismos índices de deduplicación (por ISBN y por título), así que un libro nunca aparece dos veces sin importar por qué motor haya entrado.
 
@@ -32,6 +28,20 @@ Los cinco motores comparten los mismos índices de deduplicación (por ISBN y po
 | **Internet Archive** | No | Solo materiales de texto |
 
 Las cuatro se consultan **compitiendo por similitud**, no en cascada: que una responda primero no impide que otra aporte una coincidencia mejor. Si alguna alcanza el 92% de similitud, se corta ahí para no gastar cuota de más.
+
+### Por qué el catálogo oficial va primero
+
+Antes que cualquier API se consulta el Catálogo Histórico de Libros del Rincón, porque hay algo que ninguna fuente web puede saber: **qué edición distribuyó la SEP a las escuelas**.
+
+El riesgo es concreto y está medido. "Adivina quién es" del acervo Rincón es de Time Life; ISBNdb devuelve, con el mismo título exacto, una edición de Walt Disney/Everest. La comparación de títulos no puede distinguirlas —coinciden al 100%— así que sin el catálogo la app daría por *Validado* el libro equivocado.
+
+Por eso, cuando un título aparece en el catálogo oficial:
+
+- Su **reseña** y su **clasificación SEP** se toman de ahí, no de la web, y llegan en la misma consulta (ya no hace falta pulsar el Motor 5 aparte).
+- El autor y la editorial, que siguen viniendo de las fuentes web, **nunca se marcan como Validado**: quedan en *Revisar*, editables, con una nota en la Bitácora explicando por qué.
+- Si ninguna API conoce el libro pero el catálogo sí, el registro se crea igual con su título y reseña oficiales, y autor y editorial en blanco. En blanco, no inventados.
+
+> **Nota sobre los datos de edición del catálogo.** El catálogo también guarda autor, editorial, año e ISBN, pero la app **no los usa**. En el JSON actual esa columna está corrida respecto a los títulos, con un desfase variable de 1 a 2 filas: al verificar 30 fichas contra ISBNdb, 20 de los 26 ISBN resolubles correspondían a otro libro, y el título correcto aparecía en una fila vecina (el ISBN de la fila "Las semillas de calabaza" es en realidad el de "Stelaluna"). Título, reseña y clasificación sí están alineados entre sí, y son lo único que se aprovecha. Si el catálogo se corrige en el origen, el núcleo ya está preparado para recibir también los campos bibliográficos.
 
 ### Cómo se decide si una coincidencia es buena
 
@@ -55,29 +65,17 @@ Cada corrección automática, fusión de duplicados, coincidencia ambigua o camp
 
 ## Cómo usarlo
 
-### Opción 1 — Abrir el enlace (recomendada)
-
-1. Entra a **https://lalitoelprofefulanito-dot.github.io/validadorISBN/**
-2. Abre el panel **Configuración** (arriba a la izquierda, con el ícono de engrane). Viene desplegado hasta que pegues tu clave de ISBNdb.
-3. Pega tu clave de ISBNdb en el primer campo. Se guarda en tu navegador, así que solo se hace una vez por equipo. Si no tienes clave, salta este paso: la app funciona con las otras 3 fuentes.
-4. Pega tu lista de títulos y/o ISBN, o arrastra tus archivos Excel/CSV al Motor 3.
-5. Clasifica con el Motor 4 (o deja que el Motor 5 proponga lo que pueda) y exporta.
-
-No hay nada que descargar ni instalar. La página se actualiza sola cada vez que se publica una mejora.
-
-### Opción 2 — Descargar los archivos (para trabajar sin internet)
-
-Útil si vas a capturar en un aula sin conexión. Ten en cuenta que las consultas bibliográficas sí requieren internet; sin él funcionan la captura, el Motor 4 y la exportación.
-
-1. Descarga **los cuatro archivos** de este repositorio y guárdalos en la **misma carpeta**:
+1. Descarga **los cuatro archivos** de este repositorio y guárdalos en la misma carpeta:
    - `index.html`
    - `importacion.js`
    - `catalogo_historico.js`
    - `README.md` (este archivo, opcional)
-2. Abre `index.html` con doble clic. Funciona en cualquier navegador moderno, sin servidor.
-3. Continúa desde el paso 2 de la Opción 1.
+2. Abre `index.html` con doble clic. Funciona en cualquier navegador moderno, sin servidor ni instalación.
+3. Abre el panel **Configuración** (arriba a la izquierda) y pega tu clave de ISBNdb. Se guarda en tu navegador; solo se hace una vez por equipo.
+4. Pega tu lista de títulos y/o ISBN, o arrastra tus archivos Excel/CSV al Motor 3.
+5. Clasifica con el Motor 4 (o deja que el Motor 5 proponga lo que pueda) y exporta.
 
-> Los archivos deben mantenerse juntos. Si abres el HTML sin `importacion.js` al lado, el Motor 3 queda inactivo; sin `catalogo_historico.js`, el Motor 5. Todo lo demás sigue funcionando, pero sin aviso de que falta algo — por eso la Opción 1 es más segura para quien no vaya a revisar carpetas.
+> Los archivos deben mantenerse juntos. Si abres el HTML sin `importacion.js` al lado, el Motor 3 queda inactivo; sin `catalogo_historico.js`, el Motor 5. Todo lo demás sigue funcionando.
 
 ## Para usarlo en otra escuela
 
@@ -117,6 +115,4 @@ Los dos módulos externos se conectan al núcleo por una API pública explícita
 
 ## Licencia
 
-[MIT](LICENSE) — © 2026 Eduardo Kantún Martínez.
-
-Puedes usar, copiar, modificar y distribuir esta herramienta libremente, incluso adaptándola a tu escuela, siempre que conserves el aviso de copyright. Si la mejoras, la comunidad docente agradecerá que compartas el resultado.
+Sin licencia definida todavía — agrega aquí la que corresponda (por ejemplo, MIT) si planeas compartir el repositorio públicamente.
