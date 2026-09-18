@@ -1,6 +1,10 @@
 # Validador Masivo de Títulos de Libros
 
+**▶ Úsalo aquí: https://lalitoelprofefulanito-dot.github.io/validadorISBN/**
+
 Herramienta de navegador para validar, enriquecer y consolidar inventarios bibliográficos escolares en lotes de hasta 1,000 títulos — sin backend, sin instalación, sin costo. Nació para automatizar la captura del proyecto **Biblioteca Viva** (Escuela Primaria Molino de Rosas), pero está construida para que cualquier escuela pueda usarla con su propia plantilla y su propio catálogo, sin tocar el código.
+
+Todo el procesamiento ocurre en el navegador de quien la usa. No hay servidor propio, no hay cuenta que crear y ningún dato del inventario sale hacia una base de datos ajena: las únicas conexiones son a las APIs públicas de consulta bibliográfica.
 
 ## Qué hace
 
@@ -51,17 +55,29 @@ Cada corrección automática, fusión de duplicados, coincidencia ambigua o camp
 
 ## Cómo usarlo
 
-1. Descarga **los cuatro archivos** de este repositorio y guárdalos en la misma carpeta:
+### Opción 1 — Abrir el enlace (recomendada)
+
+1. Entra a **https://lalitoelprofefulanito-dot.github.io/validadorISBN/**
+2. Abre el panel **Configuración** (arriba a la izquierda, con el ícono de engrane). Viene desplegado hasta que pegues tu clave de ISBNdb.
+3. Pega tu clave de ISBNdb en el primer campo. Se guarda en tu navegador, así que solo se hace una vez por equipo. Si no tienes clave, salta este paso: la app funciona con las otras 3 fuentes.
+4. Pega tu lista de títulos y/o ISBN, o arrastra tus archivos Excel/CSV al Motor 3.
+5. Clasifica con el Motor 4 (o deja que el Motor 5 proponga lo que pueda) y exporta.
+
+No hay nada que descargar ni instalar. La página se actualiza sola cada vez que se publica una mejora.
+
+### Opción 2 — Descargar los archivos (para trabajar sin internet)
+
+Útil si vas a capturar en un aula sin conexión. Ten en cuenta que las consultas bibliográficas sí requieren internet; sin él funcionan la captura, el Motor 4 y la exportación.
+
+1. Descarga **los cuatro archivos** de este repositorio y guárdalos en la **misma carpeta**:
    - `index.html`
    - `importacion.js`
    - `catalogo_historico.js`
    - `README.md` (este archivo, opcional)
-2. Abre `index.html` con doble clic. Funciona en cualquier navegador moderno, sin servidor ni instalación.
-3. Abre el panel **Configuración** (arriba a la izquierda) y pega tu clave de ISBNdb. Se guarda en tu navegador; solo se hace una vez por equipo.
-4. Pega tu lista de títulos y/o ISBN, o arrastra tus archivos Excel/CSV al Motor 3.
-5. Clasifica con el Motor 4 (o deja que el Motor 5 proponga lo que pueda) y exporta.
+2. Abre `index.html` con doble clic. Funciona en cualquier navegador moderno, sin servidor.
+3. Continúa desde el paso 2 de la Opción 1.
 
-> Los archivos deben mantenerse juntos. Si abres el HTML sin `importacion.js` al lado, el Motor 3 queda inactivo; sin `catalogo_historico.js`, el Motor 5. Todo lo demás sigue funcionando.
+> Los archivos deben mantenerse juntos. Si abres el HTML sin `importacion.js` al lado, el Motor 3 queda inactivo; sin `catalogo_historico.js`, el Motor 5. Todo lo demás sigue funcionando, pero sin aviso de que falta algo — por eso la Opción 1 es más segura para quien no vaya a revisar carpetas.
 
 ## Para usarlo en otra escuela
 
@@ -101,4 +117,6 @@ Los dos módulos externos se conectan al núcleo por una API pública explícita
 
 ## Licencia
 
-Sin licencia definida todavía — agrega aquí la que corresponda (por ejemplo, MIT) si planeas compartir el repositorio públicamente.
+[MIT](LICENSE) — © 2026 Eduardo Kantún Martínez.
+
+Puedes usar, copiar, modificar y distribuir esta herramienta libremente, incluso adaptándola a tu escuela, siempre que conserves el aviso de copyright. Si la mejoras, la comunidad docente agradecerá que compartas el resultado.
